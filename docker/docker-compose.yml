@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  sociwave-web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:80"
+    container_name: sociwave-web
+    restart: unless-stopped
