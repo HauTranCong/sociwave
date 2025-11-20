@@ -8,7 +8,7 @@ import '../../domain/models/reel.dart';
 import '../../domain/models/rule.dart';
 
 /// Service for local data persistence
-/// 
+///
 /// Uses SharedPreferences for non-sensitive data and
 /// FlutterSecureStorage for sensitive data (API tokens)
 class StorageService {
@@ -21,9 +21,7 @@ class StorageService {
   static Future<StorageService> init() async {
     final prefs = await SharedPreferences.getInstance();
     const secureStorage = FlutterSecureStorage(
-      aOptions: AndroidOptions(
-        encryptedSharedPreferences: true,
-      ),
+      aOptions: AndroidOptions(encryptedSharedPreferences: true),
     );
     return StorageService(prefs, secureStorage);
   }
@@ -44,9 +42,11 @@ class StorageService {
         'version': config.version,
         'page_id': config.pageId,
         'use_mock_data': config.useMockData,
+        'reels_limit': config.reelsLimit,
+        'comments_limit': config.commentsLimit,
       };
       await _prefs.setString(StorageKeys.configKey, jsonEncode(configData));
-      
+
       AppLogger.info('Config saved successfully');
     } catch (e, stackTrace) {
       AppLogger.error('Failed to save config', e, stackTrace);
@@ -64,15 +64,18 @@ class StorageService {
       }
 
       final configData = jsonDecode(configJson) as Map<String, dynamic>;
-      
+
       // Get token from secure storage
-      final token = await _secureStorage.read(key: StorageKeys.apiTokenKey) ?? '';
+      final token =
+          await _secureStorage.read(key: StorageKeys.apiTokenKey) ?? '';
 
       final config = Config(
         token: token,
         version: configData['version'] as String? ?? 'v24.0',
         pageId: configData['page_id'] as String? ?? 'me',
         useMockData: configData['use_mock_data'] as bool? ?? false,
+        reelsLimit: configData['reels_limit'] as int? ?? 25,
+        commentsLimit: configData['comments_limit'] as int? ?? 100,
       );
 
       AppLogger.info('Config loaded successfully');
@@ -104,7 +107,7 @@ class StorageService {
       rules.forEach((objectId, rule) {
         rulesMap[objectId] = rule.toJson();
       });
-      
+
       await _prefs.setString(StorageKeys.rulesKey, jsonEncode(rulesMap));
       AppLogger.info('Saved ${rules.length} rules');
     } catch (e, stackTrace) {
@@ -124,9 +127,12 @@ class StorageService {
 
       final rulesData = jsonDecode(rulesJson) as Map<String, dynamic>;
       final rules = <String, Rule>{};
-      
+
       rulesData.forEach((objectId, ruleData) {
-        rules[objectId] = Rule.fromJson(objectId, ruleData as Map<String, dynamic>);
+        rules[objectId] = Rule.fromJson(
+          objectId,
+          ruleData as Map<String, dynamic>,
+        );
       });
 
       AppLogger.info('Loaded ${rules.length} rules');
@@ -188,7 +194,7 @@ class StorageService {
 
       final List<dynamic> list = jsonDecode(json);
       final Set<String> commentIds = list.cast<String>().toSet();
-      
+
       AppLogger.info('Loaded ${commentIds.length} replied comment IDs');
       return commentIds;
     } catch (e, stackTrace) {
@@ -204,7 +210,11 @@ class StorageService {
       commentIds.add(commentId);
       await saveRepliedComments(commentIds);
     } catch (e, stackTrace) {
-      AppLogger.error('Failed to add replied comment $commentId', e, stackTrace);
+      AppLogger.error(
+        'Failed to add replied comment $commentId',
+        e,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -255,7 +265,7 @@ class StorageService {
       final reels = reelsData
           .map((data) => Reel.fromJson(data as Map<String, dynamic>))
           .toList();
-      
+
       AppLogger.info('Loaded ${reels.length} cached reels');
       return reels;
     } catch (e, stackTrace) {
@@ -376,7 +386,7 @@ class StorageService {
     try {
       final authDataStr = _prefs.getString(StorageKeys.authKey);
       if (authDataStr == null) return null;
-      
+
       return jsonDecode(authDataStr) as Map<String, dynamic>;
     } catch (e, stackTrace) {
       AppLogger.error('Failed to get auth data', e, stackTrace);

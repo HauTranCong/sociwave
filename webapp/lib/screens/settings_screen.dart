@@ -22,6 +22,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _tokenController;
   late TextEditingController _versionController;
   late TextEditingController _pageIdController;
+  late TextEditingController _reelsLimitController;
+  late TextEditingController _commentsLimitController;
   bool _useMockData = false;
   bool _isLoading = false;
 
@@ -32,6 +34,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _tokenController = TextEditingController(text: config.token);
     _versionController = TextEditingController(text: config.version);
     _pageIdController = TextEditingController(text: config.pageId);
+    _reelsLimitController = TextEditingController(
+      text: config.reelsLimit.toString(),
+    );
+    _commentsLimitController = TextEditingController(
+      text: config.commentsLimit.toString(),
+    );
     _useMockData = config.useMockData;
   }
 
@@ -40,6 +48,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _tokenController.dispose();
     _versionController.dispose();
     _pageIdController.dispose();
+    _reelsLimitController.dispose();
+    _commentsLimitController.dispose();
     super.dispose();
   }
 
@@ -53,6 +63,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       version: _versionController.text.trim(),
       pageId: _pageIdController.text.trim(),
       useMockData: _useMockData,
+      reelsLimit: int.tryParse(_reelsLimitController.text.trim()) ?? 25,
+      commentsLimit: int.tryParse(_commentsLimitController.text.trim()) ?? 100,
     );
 
     final configProvider = context.read<ConfigProvider>();
@@ -126,9 +138,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Configure your Facebook API credentials to start monitoring comments',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[600],
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.grey[600]),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -161,7 +172,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     prefixIcon: Icon(Icons.code),
                     helperText: 'Facebook Graph API version',
                   ),
-                  validator: (value) => Validators.validateApiVersion(value ?? ''),
+                  validator: (value) =>
+                      Validators.validateApiVersion(value ?? ''),
                 ),
                 const SizedBox(height: 16),
 
@@ -183,11 +195,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 24),
 
+                // API Limits Section
+                Text(
+                  'API Request Limits',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Configure how many items to fetch per API request',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 16),
+
+                // Reels Limit Field
+                TextFormField(
+                  controller: _reelsLimitController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Reels Limit',
+                    hintText: 'Max reels per request (1-100)',
+                    prefixIcon: Icon(Icons.video_library),
+                    helperText: 'Number of reels to fetch (default: 25)',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Reels limit is required';
+                    }
+                    final limit = int.tryParse(value);
+                    if (limit == null) {
+                      return 'Please enter a valid number';
+                    }
+                    if (limit < 1 || limit > 100) {
+                      return 'Limit must be between 1 and 100';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Comments Limit Field
+                TextFormField(
+                  controller: _commentsLimitController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Comments Limit',
+                    hintText: 'Max comments per request (1-100)',
+                    prefixIcon: Icon(Icons.comment),
+                    helperText: 'Number of comments to fetch (default: 100)',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Comments limit is required';
+                    }
+                    final limit = int.tryParse(value);
+                    if (limit == null) {
+                      return 'Please enter a valid number';
+                    }
+                    if (limit < 1 || limit > 100) {
+                      return 'Limit must be between 1 and 100';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+
                 // Mock Data Switch
                 Card(
                   child: SwitchListTile(
                     title: const Text('Use Mock Data'),
-                    subtitle: const Text('For development and testing without real API'),
+                    subtitle: const Text(
+                      'For development and testing without real API',
+                    ),
                     value: _useMockData,
                     onChanged: (value) {
                       setState(() => _useMockData = value);

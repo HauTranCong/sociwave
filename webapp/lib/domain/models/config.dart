@@ -4,27 +4,37 @@ import 'package:json_annotation/json_annotation.dart';
 part 'config.g.dart';
 
 /// Configuration model for API settings
-/// 
+///
 /// Corresponds to Python's config.json structure
 @JsonSerializable()
 class Config extends Equatable {
   /// Facebook Graph API access token
   final String token;
-  
+
   /// API version (e.g., "v24.0", "v18.0")
   final String version;
-  
+
   /// Facebook Page ID or "me" for current user
   final String pageId;
-  
+
   /// Whether to use mock data for development/testing
   final bool useMockData;
+
+  /// Maximum number of reels to fetch per request (1-100)
+  @JsonKey(name: 'reels_limit', defaultValue: 25)
+  final int reelsLimit;
+
+  /// Maximum number of comments to fetch per request (1-100)
+  @JsonKey(name: 'comments_limit', defaultValue: 100)
+  final int commentsLimit;
 
   const Config({
     required this.token,
     required this.version,
     required this.pageId,
     this.useMockData = false,
+    this.reelsLimit = 25,
+    this.commentsLimit = 100,
   });
 
   /// Default configuration with empty values
@@ -34,6 +44,8 @@ class Config extends Equatable {
       version: 'v24.0',
       pageId: 'me',
       useMockData: false,
+      reelsLimit: 25,
+      commentsLimit: 100,
     );
   }
 
@@ -49,30 +61,39 @@ class Config extends Equatable {
     String? version,
     String? pageId,
     bool? useMockData,
+    int? reelsLimit,
+    int? commentsLimit,
   }) {
     return Config(
       token: token ?? this.token,
       version: version ?? this.version,
       pageId: pageId ?? this.pageId,
       useMockData: useMockData ?? this.useMockData,
+      reelsLimit: reelsLimit ?? this.reelsLimit,
+      commentsLimit: commentsLimit ?? this.commentsLimit,
     );
   }
 
   /// Check if configuration is valid
   bool get isValid {
-    return token.isNotEmpty && 
-           version.isNotEmpty && 
-           pageId.isNotEmpty;
+    return token.isNotEmpty && version.isNotEmpty && pageId.isNotEmpty;
   }
 
   /// Check if using production data (not mock)
   bool get isProduction => !useMockData && token.isNotEmpty;
 
   @override
-  List<Object?> get props => [token, version, pageId, useMockData];
+  List<Object?> get props => [
+    token,
+    version,
+    pageId,
+    useMockData,
+    reelsLimit,
+    commentsLimit,
+  ];
 
   @override
   String toString() {
-    return 'Config(version: $version, pageId: $pageId, useMockData: $useMockData)';
+    return 'Config(version: $version, pageId: $pageId, useMockData: $useMockData, reelsLimit: $reelsLimit, commentsLimit: $commentsLimit)';
   }
 }

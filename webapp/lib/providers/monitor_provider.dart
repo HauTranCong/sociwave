@@ -8,11 +8,17 @@ import '../services/background_monitor_service.dart';
 class MonitorProvider extends ChangeNotifier {
   final StorageService _storage;
   final BackgroundMonitorService _monitorService;
-  
+
   MonitorStatus _status = MonitorStatus.initial();
   bool _isInitialized = false;
 
-  MonitorProvider(this._storage) : _monitorService = BackgroundMonitorService(_storage);
+  MonitorProvider(this._storage)
+    : _monitorService = BackgroundMonitorService(_storage) {
+    // Set up callback to update stats in real-time
+    _monitorService.onStatsUpdated = _reloadStats;
+    // Set up callback to handle errors
+    _monitorService.onError = _handleError;
+  }
 
   // Getters
   MonitorStatus get status => _status;
@@ -22,6 +28,8 @@ class MonitorProvider extends ChangeNotifier {
   int get totalChecks => _status.totalChecks;
   int get totalReplies => _status.totalReplies;
   String? get lastError => _status.lastError;
+  Duration get monitoringInterval => _monitorService.interval;
+  String get intervalText => _monitorService.intervalText;
 
   /// Initialize monitor provider
   Future<void> init() async {
@@ -40,14 +48,18 @@ class MonitorProvider extends ChangeNotifier {
       );
 
       _isInitialized = true;
-      AppLogger.info('🤖 Monitor initialized (checks: $totalChecks, replies: $totalReplies)');
-      
+      AppLogger.info(
+        '🤖 Monitor initialized (checks: $totalChecks, replies: $totalReplies)',
+      );
+
       // Auto-start monitoring if it was previously enabled
       if (wasEnabled) {
         AppLogger.info('🔄 Auto-starting monitoring (was enabled)');
+        // Clear any old errors before starting
+        _status = _status.clearError();
         await startMonitoring();
       }
-      
+
       notifyListeners();
     } catch (e, stackTrace) {
       AppLogger.error('Failed to initialize MonitorProvider', e, stackTrace);
@@ -62,9 +74,13 @@ class MonitorProvider extends ChangeNotifier {
         return true;
       }
 
+      // Clear any previous errors
+      _status = _status.clearError();
+      notifyListeners();
+
       // Start the background monitoring service
       final started = await _monitorService.start(
-        interval: const Duration(minutes: 5),
+        interval: _monitorService.interval,
       );
 
       if (!started) {
@@ -74,8 +90,10 @@ class MonitorProvider extends ChangeNotifier {
 
       await _storage.saveMonitoringEnabled(true);
       _status = _status.copyWith(isRunning: true);
-      
-      AppLogger.info('🤖 Background monitoring started (5min interval)');
+
+      AppLogger.info(
+        '🤖 Background monitoring started (${_monitorService.intervalText} interval)',
+      );
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
@@ -98,7 +116,7 @@ class MonitorProvider extends ChangeNotifier {
 
       await _storage.saveMonitoringEnabled(false);
       _status = _status.copyWith(isRunning: false);
-      
+
       AppLogger.info('🛑 Background monitoring stopped');
       notifyListeners();
       return true;
@@ -140,10 +158,10 @@ class MonitorProvider extends ChangeNotifier {
     try {
       await _storage.incrementMonitorChecks();
       await _storage.saveLastMonitorCheck(DateTime.now());
-      
+
       _status = _status.incrementChecks();
       notifyListeners();
-      
+
       AppLogger.info('✅ Check recorded');
     } catch (e, stackTrace) {
       AppLogger.error('Failed to record monitoring check', e, stackTrace);
@@ -154,10 +172,10 @@ class MonitorProvider extends ChangeNotifier {
   Future<void> recordReply() async {
     try {
       await _storage.incrementTotalReplies();
-      
+
       _status = _status.incrementReplies();
       notifyListeners();
-      
+
       AppLogger.debug('Reply recorded');
     } catch (e, stackTrace) {
       AppLogger.error('Failed to record reply', e, stackTrace);
@@ -187,7 +205,7 @@ class MonitorProvider extends ChangeNotifier {
         totalChecks: 0,
         totalReplies: 0,
       );
-      
+
       AppLogger.info('Statistics reset');
       notifyListeners();
       return true;
@@ -207,10 +225,11 @@ class MonitorProvider extends ChangeNotifier {
     if (!_status.isRunning) return true; // Stopped is considered healthy
     if (_status.hasRecentError) return false;
     if (_status.lastCheck == null) return true; // Just started
-    
+
     // Check if last check was within acceptable time
     final timeSinceCheck = DateTime.now().difference(_status.lastCheck!);
-    return timeSinceCheck.inMinutes < 5; // Should check at least every 5 minutes
+    return timeSinceCheck.inMinutes <
+        5; // Should check at least every 5 minutes
   }
 
   /// Get monitoring statistics summary
@@ -219,16 +238,95 @@ class MonitorProvider extends ChangeNotifier {
       'isRunning': _status.isRunning,
       'totalChecks': _status.totalChecks,
       'totalReplies': _status.totalReplies,
-      'averageRepliesPerCheck': _status.averageRepliesPerCheck.toStringAsFixed(2),
+      'averageRepliesPerCheck': _status.averageRepliesPerCheck.toStringAsFixed(
+        2,
+      ),
       'lastCheck': _status.lastCheck?.toIso8601String(),
       'hasRecentError': _status.hasRecentError,
       'isHealthy': isHealthy,
+      'interval': intervalText,
+      'intervalMinutes': monitoringInterval.inMinutes,
     };
+  }
+
+  /// Set monitoring interval
+  /// Returns true if successful, false otherwise
+  Future<bool> setMonitoringInterval(Duration interval) async {
+    try {
+      if (interval.inSeconds < 60) {
+        AppLogger.warning('⚠️ Interval too short (minimum 1 minute)');
+        _setError('Interval must be at least 1 minute');
+        return false;
+      }
+
+      final success = await _monitorService.setInterval(interval);
+
+      if (success) {
+        AppLogger.info(
+          '✅ Monitoring interval updated to ${_monitorService.intervalText}',
+        );
+        notifyListeners(); // Notify listeners about interval change
+        return true;
+      } else {
+        _setError('Failed to set monitoring interval');
+        return false;
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error('Failed to set monitoring interval', e, stackTrace);
+      _setError('Failed to set interval: $e');
+      return false;
+    }
+  }
+
+  /// Set monitoring interval in minutes (convenience method)
+  Future<bool> setIntervalMinutes(int minutes) async {
+    if (minutes < 1) {
+      AppLogger.warning('⚠️ Interval must be at least 1 minute');
+      return false;
+    }
+    return await setMonitoringInterval(Duration(minutes: minutes));
+  }
+
+  /// Set monitoring interval in hours (convenience method)
+  Future<bool> setIntervalHours(int hours) async {
+    if (hours < 1) {
+      AppLogger.warning('⚠️ Interval must be at least 1 hour');
+      return false;
+    }
+    return await setMonitoringInterval(Duration(hours: hours));
   }
 
   // Private helpers
   void _setError(String error) {
     _status = _status.withError(error);
     notifyListeners();
+  }
+
+  /// Reload statistics from storage (called by background service)
+  void _reloadStats() {
+    try {
+      final lastCheckTime = _storage.loadLastMonitorCheck();
+      final totalChecks = _storage.getTotalMonitorChecks();
+      final totalReplies = _storage.getTotalReplies();
+
+      _status = _status.copyWith(
+        lastCheck: lastCheckTime,
+        totalChecks: totalChecks,
+        totalReplies: totalReplies,
+      );
+
+      notifyListeners();
+      AppLogger.debug(
+        '📊 Stats reloaded: checks=$totalChecks, replies=$totalReplies',
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error('Failed to reload stats', e, stackTrace);
+    }
+  }
+
+  /// Handle error from background service
+  void _handleError(String error) {
+    AppLogger.error('📛 Background monitoring error: $error');
+    _setError(error);
   }
 }

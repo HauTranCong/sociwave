@@ -9,3 +9,41 @@ services:
       - "8080:80"
     container_name: sociwave-web
     restart: unless-stopped
+    
+    # Environment variables (optional)
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/index.html"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    
+    # Resource limits (optional, adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Networks (optional)
+    networks:
+      - sociwave-network
+
+networks:
+  sociwave-network:
+    driver: bridge

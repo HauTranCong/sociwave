@@ -33,28 +33,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadData() async {
     if (!mounted) return;
-    
+
     final configProvider = context.read<ConfigProvider>();
     final reelsProvider = context.read<ReelsProvider>();
     final commentsProvider = context.read<CommentsProvider>();
     final rulesProvider = context.read<RulesProvider>();
-    
+
+    // Test API connection if not using mock data
+    if (!configProvider.config.useMockData) {
+      await configProvider.testConnection();
+    }
+
     // Initialize API-dependent providers with config
     reelsProvider.initialize(configProvider.config);
     commentsProvider.initialize(configProvider.config);
-    
-    await Future.wait([
-      reelsProvider.fetchReels(),
-      rulesProvider.loadRules(),
-    ]);
+
+    await Future.wait([reelsProvider.fetchReels(), rulesProvider.loadRules()]);
   }
 
   Future<void> _refreshData() async {
     final reelsProvider = context.read<ReelsProvider>();
     await reelsProvider.refreshReels();
-    
+
     if (!mounted) return;
-    
+
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -78,14 +80,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Show config status
           Consumer<ConfigProvider>(
             builder: (context, config, _) {
+              final isUsingMockData = config.config.useMockData;
+              final isConnected = config.isConnected;
+              final isTestingConnection = config.isTestingConnection;
+
+              // Determine icon and color based on connection status
+              IconData icon;
+              Color color;
+              String tooltip;
+
+              if (isUsingMockData) {
+                icon = Icons.cloud_off;
+                color = Colors.orange;
+                tooltip = 'Using Mock Data';
+              } else if (isTestingConnection) {
+                icon = Icons.cloud_sync;
+                color = Colors.blue;
+                tooltip = 'Testing Connection...';
+              } else if (isConnected) {
+                icon = Icons.cloud_done;
+                color = Colors.green;
+                tooltip = 'Connected: ${config.config.pageId}';
+              } else {
+                icon = Icons.cloud_off;
+                color = Colors.red;
+                tooltip =
+                    'Disconnected: ${config.config.pageId} (API not connected)';
+              }
+
               return IconButton(
-                icon: Icon(
-                    config.config.useMockData ? Icons.cloud_off : Icons.cloud_done,
-                  color: config.config.useMockData ? Colors.orange : Colors.green,
-                ),
-                tooltip: config.config.useMockData 
-                    ? 'Using Mock Data' 
-                    : 'Using Real API: ${config.config.pageId}',
+                icon: Icon(icon, color: color),
+                tooltip: tooltip,
                 onPressed: () => context.go(AppRouter.settings),
               );
             },
@@ -96,8 +121,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return IconButton(
                 icon: Icon(
                   Icons.refresh,
-                  color: reelsProvider.isLoading 
-                      ? Colors.grey 
+                  color: reelsProvider.isLoading
+                      ? Colors.grey
                       : Theme.of(context).colorScheme.primary,
                 ),
                 tooltip: 'Refresh All Reels',
@@ -105,7 +130,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               );
             },
           ),
-          Padding(padding:  const EdgeInsets.only(right: 8)),
+          Padding(padding: const EdgeInsets.only(right: 8)),
         ],
       ),
       body: RefreshIndicator(
@@ -113,19 +138,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: CustomScrollView(
           slivers: [
             // API Configuration Banner (if using mock data)
-            SliverToBoxAdapter(
-              child: _buildConfigBanner(),
-            ),
+            SliverToBoxAdapter(child: _buildConfigBanner()),
 
             // Statistics Header
-            SliverToBoxAdapter(
-              child: _buildStatisticsSection(),
-            ),
+            SliverToBoxAdapter(child: _buildStatisticsSection()),
 
             // Monitoring Status
-            SliverToBoxAdapter(
-              child: _buildMonitoringSection(),
-            ),
+            SliverToBoxAdapter(child: _buildMonitoringSection()),
 
             // Reels List Header
             SliverToBoxAdapter(
@@ -144,9 +163,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       builder: (context, provider, child) {
                         return Text(
                           '${provider.reels.length} reels',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[600],
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.grey[600]),
                         );
                       },
                     ),
@@ -178,7 +196,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: EmptyState(
                       icon: Icons.video_library_outlined,
                       title: 'No Reels Found',
-                      message: 'Click the refresh button to load your Facebook reels.\n\nMake sure mock data is disabled in Settings.',
+                      message:
+                          'Click the refresh button to load your Facebook reels.\n\nMake sure mock data is disabled in Settings.',
                       actionLabel: 'Load Reels',
                       onAction: _refreshData,
                     ),
@@ -189,42 +208,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 return SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final reel = reelsProvider.reels[index];
-                        return ReelCard(
-                          reel: reel,
-                          onTap: () {
-                            context.push(
-                              AppRouter.comments,
-                              extra: {
-                                'reelId': reel.id,
-                                'reelDescription': reel.description,
-                              },
-                            );
-                          },
-                          onEditRule: () {
-                            context.push(
-                              AppRouter.ruleEditor,
-                              extra: {
-                                'reelId': reel.id,
-                                'reelDescription': reel.description,
-                              },
-                            );
-                          },
-                        );
-                      },
-                      childCount: reelsProvider.reels.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final reel = reelsProvider.reels[index];
+                      return ReelCard(
+                        reel: reel,
+                        onTap: () {
+                          context.push(
+                            AppRouter.comments,
+                            extra: {
+                              'reelId': reel.id,
+                              'reelDescription': reel.description,
+                            },
+                          );
+                        },
+                        onEditRule: () {
+                          context.push(
+                            AppRouter.ruleEditor,
+                            extra: {
+                              'reelId': reel.id,
+                              'reelDescription': reel.description,
+                            },
+                          );
+                        },
+                      );
+                    }, childCount: reelsProvider.reels.length),
                   ),
                 );
               },
             ),
 
             // Bottom Spacing
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 16),
-            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
           ],
         ),
       ),
@@ -249,7 +263,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           child: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 32),
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange[700],
+                size: 32,
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -266,10 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Turn off mock data in Settings to load real Facebook reels.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.orange[800],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.orange[800]),
                     ),
                   ],
                 ),
@@ -349,19 +364,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Row(
                       children: [
                         Icon(
-                          provider.isRunning 
-                              ? Icons.play_circle 
+                          provider.isRunning
+                              ? Icons.play_circle
                               : Icons.pause_circle,
-                          color: provider.isRunning 
-                              ? Colors.green 
+                          color: provider.isRunning
+                              ? Colors.green
                               : Colors.grey,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Background Monitoring',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -393,19 +407,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  provider.getStatusText(),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+                // Status text with detailed information
+                _buildStatusText(provider),
+                const SizedBox(height: 8),
+                // Interval information with edit button
+                Row(
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Check interval: ${provider.intervalText}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () => _showIntervalDialog(context, provider),
+                      child: Icon(
+                        Icons.edit_outlined,
+                        size: 16,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ],
                 ),
                 if (provider.lastCheck != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    'Last checked: ${_formatLastCheck(provider.lastCheck!)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[500],
-                    ),
+                    'Last checked: ${_formatTimestamp(provider.lastCheck!)}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
                   ),
                 ],
               ],
@@ -416,18 +454,150 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  String _formatLastCheck(DateTime lastCheck) {
-    final now = DateTime.now();
-    final difference = now.difference(lastCheck);
+  /// Format timestamp to readable format
+  String _formatTimestamp(DateTime timestamp) {
+    final hour = timestamp.hour.toString().padLeft(2, '0');
+    final minute = timestamp.minute.toString().padLeft(2, '0');
+    final second = timestamp.second.toString().padLeft(2, '0');
+    final day = timestamp.day.toString().padLeft(2, '0');
+    final month = timestamp.month.toString().padLeft(2, '0');
+    final year = timestamp.year;
 
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
+    return '$year-$month-$day $hour:$minute:$second';
+  }
+
+  /// Build detailed status text
+  Widget _buildStatusText(MonitorProvider provider) {
+    String statusText;
+    Color statusColor;
+
+    if (!provider.isRunning) {
+      statusText = 'Monitoring is stopped';
+      statusColor = Colors.grey[600]!;
+    } else if (provider.lastError != null && provider.status.hasRecentError) {
+      statusText = 'Error: ${provider.lastError}';
+      statusColor = Colors.red[700]!;
+    } else if (provider.lastCheck == null) {
+      statusText = 'Starting monitoring...';
+      statusColor = Colors.blue[700]!;
     } else {
-      return '${difference.inDays}d ago';
+      statusText = 'Monitoring active - Next check in ${provider.intervalText}';
+      statusColor = Colors.green[700]!;
     }
+
+    return Row(
+      children: [
+        Icon(
+          provider.status.hasRecentError
+              ? Icons.error_outline
+              : provider.isRunning
+              ? Icons.check_circle_outline
+              : Icons.info_outline,
+          size: 16,
+          color: statusColor,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            statusText,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: statusColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Show dialog to change monitoring interval
+  void _showIntervalDialog(BuildContext context, MonitorProvider provider) {
+    final TextEditingController controller = TextEditingController(
+      text: provider.monitoringInterval.inMinutes.toString(),
+    );
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Set Check Interval'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter the monitoring interval in minutes:',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Interval (minutes)',
+                  hintText: 'Minimum 1 minute',
+                  prefixIcon: Icon(Icons.timer),
+                  border: OutlineInputBorder(),
+                  helperText: 'Min: 1 minute',
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a value';
+                  }
+                  final minutes = int.tryParse(value);
+                  if (minutes == null) {
+                    return 'Please enter a valid number';
+                  }
+                  if (minutes < 1) {
+                    return 'Minimum interval is 1 minute';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                final minutes = int.parse(controller.text);
+                final success = await provider.setIntervalMinutes(minutes);
+
+                if (!mounted) return;
+
+                Navigator.pop(context);
+
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Interval updated to ${provider.intervalText}',
+                      ),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Failed to update interval'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 }

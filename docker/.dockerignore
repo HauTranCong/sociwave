@@ -1,0 +1,60 @@
+# ===================================
+# .dockerignore for SociWave
+# Exclude unnecessary files from Docker build
+# ===================================
+
+# Flutter build artifacts
+webapp/build/
+webapp/.dart_tool/
+webapp/.flutter-plugins
+webapp/.flutter-plugins-dependencies
+webapp/.packages
+
+# IDE files
+webapp/.idea/
+webapp/.vscode/
+webapp/*.iml
+webapp/.DS_Store
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (not needed in container)
+docs/
+README.md
+webapp/README.md
+
+# Test files
+webapp/test/
+webapp/integration_test/
+
+# Platform-specific folders (not needed for web)
+webapp/android/
+webapp/ios/
+webapp/linux/
+webapp/macos/
+webapp/windows/
+
+# Python/Other project files (not part of Flutter web)
+CommentReplier/
+scripts/
+
+# Docker files themselves
+docker/
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Temporary files
+*.log
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Environment files (if any)
+.env
+.env.local
+*.env

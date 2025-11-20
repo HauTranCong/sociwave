@@ -1,13 +1,14 @@
 {
-    "name": "app",
-    "short_name": "app",
+    "name": "SociWave - Facebook Reel Comment Manager",
+    "short_name": "SociWave",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#FFFFFF",
+    "theme_color": "#2196F3",
+    "description": "Automated Facebook Reel comment monitoring and reply system with customizable rules",
+    "orientation": "any",
     "prefer_related_applications": false,
+    "scope": "/",
     "icons": [
         {
             "src": "icons/Icon-192.png",
