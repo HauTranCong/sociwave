@@ -2,23 +2,21 @@ import 'package:flutter/foundation.dart';
 import '../core/utils/logger.dart';
 import '../data/services/facebook_api_service.dart';
 import '../data/services/mock_api_service.dart';
-import '../data/services/storage_service.dart';
 import '../domain/models/comment.dart';
 import '../domain/models/config.dart';
 
 /// Provider for managing comments
 class CommentsProvider extends ChangeNotifier {
-  final StorageService _storage;
   FacebookApiService? _apiService;
   MockApiService? _mockApiService;
+  Config? _config;
   
   final Map<String, List<Comment>> _commentsByReel = {};
-  Set<String> _repliedComments = {};
   bool _isLoading = false;
   String? _error;
   String? _currentReelId;
 
-  CommentsProvider(this._storage);
+  CommentsProvider();
 
   // Getters
   List<Comment> get currentComments {
@@ -34,6 +32,7 @@ class CommentsProvider extends ChangeNotifier {
 
   /// Initialize with config
   void initialize(Config config) {
+    _config = config;
     if (config.useMockData) {
       _mockApiService = MockApiService();
       _apiService = null;
@@ -42,17 +41,6 @@ class CommentsProvider extends ChangeNotifier {
       _apiService = FacebookApiService(config);
       _mockApiService = null;
       AppLogger.info('📝 Comments: Using real API');
-    }
-    _loadRepliedComments();
-  }
-
-  /// Load replied comments from storage
-  Future<void> _loadRepliedComments() async {
-    try {
-      _repliedComments = await _storage.loadRepliedComments();
-      AppLogger.info('Loaded ${_repliedComments.length} replied comment IDs');
-    } catch (e, stackTrace) {
-      AppLogger.error('Failed to load replied comments', e, stackTrace);
     }
   }
 
@@ -80,10 +68,11 @@ class CommentsProvider extends ChangeNotifier {
         throw Exception('API service not initialized');
       }
 
-      // Mark replied status
+      // Mark replied status based on nested replies (check if page has already replied)
+      final pageId = _config?.pageId ?? '';
       final commentsWithStatus = fetchedComments.map((comment) {
         return comment.copyWith(
-          hasReplied: _repliedComments.contains(comment.id),
+          hasReplied: comment.hasPageReplied(pageId),
         );
       }).toList();
 
@@ -136,23 +125,15 @@ class CommentsProvider extends ChangeNotifier {
     }
   }
 
-  /// Mark comment as replied
+  /// Mark comment as replied (by refreshing to get updated replies from API)
   Future<void> _markAsReplied(String commentId) async {
-    _repliedComments.add(commentId);
-    await _storage.saveRepliedComments(_repliedComments);
-
-    // Update comment status in cache
+    // Update comment status in cache optimistically
     for (final comments in _commentsByReel.values) {
       final index = comments.indexWhere((c) => c.id == commentId);
       if (index != -1) {
         comments[index] = comments[index].copyWith(hasReplied: true);
       }
     }
-  }
-
-  /// Check if comment has been replied to
-  bool hasReplied(String commentId) {
-    return _repliedComments.contains(commentId);
   }
 
   /// Get comments for a specific reel (from cache)

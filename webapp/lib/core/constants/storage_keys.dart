@@ -30,6 +30,9 @@ class StorageKeys {
   static const String totalMonitorChecksKey = 'total_monitor_checks';
   static const String totalRepliesKey = 'total_replies';
   
+  // Inbox Tracking
+  static const String inboxedUsersKey = 'inboxed_users';
+  
   // Onboarding
   static const String hasCompletedOnboardingKey = 'has_completed_onboarding';
   static const String isFirstLaunchKey = 'is_first_launch';

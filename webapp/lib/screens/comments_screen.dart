@@ -29,7 +29,12 @@ class _CommentsScreenState extends State<CommentsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadComments();
+    // Schedule data loading after the current frame to avoid calling setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadComments();
+      }
+    });
     _startAutoRefresh();
   }
 

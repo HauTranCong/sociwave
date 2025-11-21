@@ -168,63 +168,6 @@ class StorageService {
     }
   }
 
-  // ==================== Replied Comments ====================
-
-  /// Save replied comment IDs
-  Future<void> saveRepliedComments(Set<String> commentIds) async {
-    try {
-      await _prefs.setString(
-        StorageKeys.repliedCommentsKey,
-        jsonEncode(commentIds.toList()),
-      );
-      AppLogger.info('Saved ${commentIds.length} replied comment IDs');
-    } catch (e, stackTrace) {
-      AppLogger.error('Failed to save replied comments', e, stackTrace);
-      rethrow;
-    }
-  }
-
-  /// Load replied comment IDs
-  Future<Set<String>> loadRepliedComments() async {
-    try {
-      final json = _prefs.getString(StorageKeys.repliedCommentsKey);
-      if (json == null) {
-        return {};
-      }
-
-      final List<dynamic> list = jsonDecode(json);
-      final Set<String> commentIds = list.cast<String>().toSet();
-
-      AppLogger.info('Loaded ${commentIds.length} replied comment IDs');
-      return commentIds;
-    } catch (e, stackTrace) {
-      AppLogger.error('Failed to load replied comments', e, stackTrace);
-      return {};
-    }
-  }
-
-  /// Add a replied comment ID
-  Future<void> addRepliedComment(String commentId) async {
-    try {
-      final commentIds = await loadRepliedComments();
-      commentIds.add(commentId);
-      await saveRepliedComments(commentIds);
-    } catch (e, stackTrace) {
-      AppLogger.error(
-        'Failed to add replied comment $commentId',
-        e,
-        stackTrace,
-      );
-      rethrow;
-    }
-  }
-
-  /// Check if comment has been replied to
-  Future<bool> hasRepliedToComment(String commentId) async {
-    final commentIds = await loadRepliedComments();
-    return commentIds.contains(commentId);
-  }
-
   // ==================== Cached Reels ====================
 
   /// Cache reels data
@@ -412,6 +355,55 @@ class StorageService {
       AppLogger.info('Auth data cleared');
     } catch (e, stackTrace) {
       AppLogger.error('Failed to clear auth data', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ==================== Inbox Tracking ====================
+
+  /// Load set of user IDs who have been sent inbox messages
+  Set<String> loadInboxedUsers() {
+    final data = _prefs.getString(StorageKeys.inboxedUsersKey);
+    if (data == null) return {};
+    
+    try {
+      final list = jsonDecode(data) as List<dynamic>;
+      return list.cast<String>().toSet();
+    } catch (e, stackTrace) {
+      AppLogger.error('Failed to load inboxed users', e, stackTrace);
+      return {};
+    }
+  }
+
+  /// Add a user ID to the inboxed users set
+  Future<void> addInboxedUser(String userId) async {
+    try {
+      final inboxedUsers = loadInboxedUsers();
+      inboxedUsers.add(userId);
+      await _prefs.setString(
+        StorageKeys.inboxedUsersKey,
+        jsonEncode(inboxedUsers.toList()),
+      );
+      AppLogger.debug('Added user $userId to inboxed users');
+    } catch (e, stackTrace) {
+      AppLogger.error('Failed to add inboxed user', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Check if a user has been sent an inbox message
+  bool hasInboxedUser(String userId) {
+    final inboxedUsers = loadInboxedUsers();
+    return inboxedUsers.contains(userId);
+  }
+
+  /// Clear all inboxed users tracking
+  Future<void> clearInboxedUsers() async {
+    try {
+      await _prefs.remove(StorageKeys.inboxedUsersKey);
+      AppLogger.info('Cleared inboxed users tracking');
+    } catch (e, stackTrace) {
+      AppLogger.error('Failed to clear inboxed users', e, stackTrace);
       rethrow;
     }
   }

@@ -46,6 +46,11 @@ class FacebookApiService {
     return {ApiConstants.accessTokenParam: config.token, ...?params};
   }
 
+  /// Build comment fields with dynamic replies limit
+  String _buildCommentFields() {
+    return 'id,message,from,created_time,updated_time,comments.limit(${config.repliesLimit}).summary(true){id,message,from,created_time}';
+  }
+
   // ==================== User Info ====================
 
   /// Get user/page information
@@ -115,7 +120,7 @@ class FacebookApiService {
       final response = await _dio.get(
         endpoint,
         queryParameters: _buildParams({
-          ApiConstants.fieldsParam: ApiConstants.commentFields,
+          ApiConstants.fieldsParam: _buildCommentFields(),
           ApiConstants.limitParam: limit ?? config.commentsLimit,
         }),
       );
@@ -124,12 +129,21 @@ class FacebookApiService {
         final data = response.data as Map<String, dynamic>;
         final commentsData = data['data'] as List<dynamic>? ?? [];
 
-        final comments = commentsData
+        // Parse all parent comments (including those without 'from' field)
+        final parentComments = commentsData
             .map((json) => Comment.fromJson(json as Map<String, dynamic>))
             .toList();
 
-        AppLogger.info('🌐 API: Fetched ${comments.length} comments');
-        return comments;
+        // Count comments without author info (deleted/restricted users)
+        final commentsWithoutAuthor = parentComments.where((c) => c.from == null).length;
+        if (commentsWithoutAuthor > 0) {
+          AppLogger.debug(
+            'Found $commentsWithoutAuthor comment(s) without author info (deleted/restricted users) - will show as "[Unknown User]"'
+          );
+        }
+        
+        AppLogger.info('🌐 API: Fetched ${parentComments.length} user comments');
+        return parentComments;
       } else {
         throw _handleError(response);
       }
@@ -159,6 +173,154 @@ class FacebookApiService {
         throw _handleError(response);
       }
     } on DioException {
+      rethrow;
+    }
+  }
+
+  /// Send a private reply to a comment using Facebook's Private Replies API
+  ///
+  /// This sends a message to the person's Messenger inbox with a link to their comment.
+  /// 
+  /// Key differences from regular messaging:
+  /// - Uses comment_id in recipient field (not user id)
+  /// - Works for commenters who haven't messaged the page
+  /// - Must be sent within 7 days of the comment
+  /// - Only one private reply can be sent per comment
+  /// - When user responds, you can continue the conversation (24h window)
+  ///
+  /// Requires pages_messaging permission
+  /// 
+  /// Reference: https://developers.facebook.com/docs/messenger-platform/send-messages/private-replies
+  Future<Map<String, dynamic>> sendPrivateReply(
+    String commentId,
+    String message,
+  ) async {
+    try {
+      // Use the Private Replies API - send to page's messages endpoint
+      // with comment_id in recipient (not the old private_replies endpoint)
+      final endpoint = '${config.pageId}/messages';
+      
+      AppLogger.debug('📤 Sending private reply for comment $commentId');
+      
+      final response = await _dio.post(
+        endpoint,
+        queryParameters: _buildParams(),
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        ),
+        data: {
+          'recipient': {
+            'comment_id': commentId, // Use comment_id instead of user id
+          },
+          'message': {
+            'text': message,
+          },
+        },
+      );
+
+      if (response.statusCode == 200) {
+        AppLogger.info('📬 API: Private reply sent for comment $commentId');
+        return response.data as Map<String, dynamic>;
+      } else {
+        throw _handleError(response);
+      }
+    } on DioException catch (e) {
+      AppLogger.error('Failed to send private reply', e);
+      rethrow;
+    }
+  }
+
+  /// Send a private reply using comment_id (Facebook Private Replies API)
+  ///
+  /// This is an alias for sendPrivateReply for backwards compatibility
+  /// and clearer naming when called from other parts of the code.
+  ///
+  /// Uses comment_id in recipient field which works for commenters
+  /// who haven't messaged the page before (unlike user id method).
+  ///
+  /// Limitations:
+  /// - Only one private reply per comment
+  /// - Must be sent within 7 days of comment
+  /// - Requires pages_messaging permission
+  Future<Map<String, dynamic>> sendPrivateMessage(
+    String commentId,
+    String message,
+  ) async {
+    // Use the Private Replies API with comment_id
+    return sendPrivateReply(commentId, message);
+  }
+
+  /// Send a direct message to a user via Facebook Messenger (legacy method)
+  ///
+  /// Note: This method uses user ID and typically fails with error #551
+  /// because users must message the page first. Use sendPrivateReply instead.
+  ///
+  /// Kept for reference but not recommended for use.
+  Future<Map<String, dynamic>> sendDirectMessageToUser(
+    String userId,
+    String message,
+  ) async {
+    try {
+      // Use the Send API endpoint with user id
+      final endpoint = '${config.pageId}/messages';
+      
+      AppLogger.debug('📤 Sending direct message to user $userId');
+      
+      final response = await _dio.post(
+        endpoint,
+        queryParameters: _buildParams(),
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        ),
+        data: {
+          'recipient': {'id': userId},
+          'messaging_type': 'RESPONSE',
+          'message': {'text': message},
+        },
+      );
+
+      if (response.statusCode == 200) {
+        AppLogger.info('📬 API: Direct message sent to user $userId');
+        return response.data as Map<String, dynamic>;
+      } else {
+        throw _handleError(response);
+      }
+    } on DioException catch (e) {
+      // Handle specific Facebook API errors
+      final errorData = e.response?.data;
+      if (errorData is Map<String, dynamic> && errorData.containsKey('error')) {
+        final error = errorData['error'] as Map<String, dynamic>;
+        final errorCode = error['code'] as int?;
+        final errorMessage = error['message'] as String? ?? 'Unknown error';
+        
+        AppLogger.debug('📭 Facebook API Error $errorCode: $errorMessage');
+        
+        // Error 551: User unavailable (blocked, deleted, or hasn't messaged page)
+        if (errorCode == 551) {
+          AppLogger.warning('📭 Cannot message user $userId: User unavailable or hasn\'t initiated conversation');
+          throw Exception('User is unavailable for messaging. They may need to message your page first.');
+        }
+        // Error 10: Permission denied
+        else if (errorCode == 10) {
+          AppLogger.error('📭 Missing pages_messaging permission');
+          throw Exception('Missing required Facebook permission: pages_messaging');
+        }
+        // Error 200: Permission from user required
+        else if (errorCode == 200) {
+          AppLogger.warning('📭 User has not granted messaging permission');
+          throw Exception('User has not granted permission to receive messages');
+        }
+        else {
+          AppLogger.error('📭 Facebook API error: $errorCode - $errorMessage');
+          throw Exception('Facebook API error: $errorMessage');
+        }
+      }
+      
+      AppLogger.error('Failed to send private message', e);
       rethrow;
     }
   }

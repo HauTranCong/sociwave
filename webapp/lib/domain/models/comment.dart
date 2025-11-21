@@ -50,8 +50,8 @@ class Comment extends Equatable {
   /// Comment text/message
   final String message;
   
-  /// Comment author information
-  final CommentAuthor from;
+  /// Comment author information (nullable for deleted users/comments)
+  final CommentAuthor? from;
   
   /// When the comment was created
   @JsonKey(name: 'created_time')
@@ -61,6 +61,10 @@ class Comment extends Equatable {
   @JsonKey(name: 'updated_time')
   final DateTime? updatedTime;
   
+  /// Nested replies to this comment
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final List<Comment>? replies;
+  
   /// Whether we have already replied to this comment (computed, not from API)
   @JsonKey(includeFromJson: false, includeToJson: false)
   final bool hasReplied;
@@ -68,15 +72,45 @@ class Comment extends Equatable {
   const Comment({
     required this.id,
     required this.message,
-    required this.from,
+    this.from,
     required this.createdTime,
     this.updatedTime,
+    this.replies,
     this.hasReplied = false,
   });
 
-  /// Create Comment from JSON
-  factory Comment.fromJson(Map<String, dynamic> json) =>
-      _$CommentFromJson(json);
+  /// Create Comment from JSON with null safety for deleted users
+  factory Comment.fromJson(Map<String, dynamic> json) {
+    // Handle deleted user/comment case where 'from' is null
+    CommentAuthor? author;
+    if (json['from'] != null) {
+      author = CommentAuthor.fromJson(json['from'] as Map<String, dynamic>);
+    }
+    
+    // Handle nested replies
+    List<Comment>? replies;
+    if (json['comments'] != null) {
+      final commentsData = json['comments'] as Map<String, dynamic>;
+      if (commentsData['data'] != null) {
+        final repliesData = commentsData['data'] as List<dynamic>;
+        replies = repliesData
+            .map((replyJson) => Comment.fromJson(replyJson as Map<String, dynamic>))
+            .where((reply) => reply.from != null) // Filter out deleted user replies
+            .toList();
+      }
+    }
+    
+    return Comment(
+      id: json['id'] as String,
+      message: json['message'] as String? ?? '[Comment deleted]',
+      from: author,
+      createdTime: DateTime.parse(json['created_time'] as String),
+      updatedTime: json['updated_time'] == null
+          ? null
+          : DateTime.parse(json['updated_time'] as String),
+      replies: replies,
+    );
+  }
 
   /// Convert Comment to JSON
   Map<String, dynamic> toJson() => _$CommentToJson(this);
@@ -88,6 +122,7 @@ class Comment extends Equatable {
     CommentAuthor? from,
     DateTime? createdTime,
     DateTime? updatedTime,
+    List<Comment>? replies,
     bool? hasReplied,
   }) {
     return Comment(
@@ -96,6 +131,7 @@ class Comment extends Equatable {
       from: from ?? this.from,
       createdTime: createdTime ?? this.createdTime,
       updatedTime: updatedTime ?? this.updatedTime,
+      replies: replies ?? this.replies,
       hasReplied: hasReplied ?? this.hasReplied,
     );
   }
@@ -117,6 +153,12 @@ class Comment extends Equatable {
   /// Get message word count
   int get wordCount => message.trim().split(RegExp(r'\s+')).length;
 
+  /// Get Facebook permalink URL for this comment
+  String get permalinkUrl {
+    // Facebook comment URL format: https://www.facebook.com/{comment_id}
+    return 'https://www.facebook.com/$id';
+  }
+
   @override
   List<Object?> get props => [
     id,
@@ -124,11 +166,25 @@ class Comment extends Equatable {
     from,
     createdTime,
     updatedTime,
+    replies,
     hasReplied,
   ];
 
   @override
   String toString() {
-    return 'Comment(id: $id, from: ${from.name}, hasReplied: $hasReplied)';
+    return 'Comment(id: $id, from: ${from?.name ?? "[Deleted User]"}, hasReplied: $hasReplied)';
+  }
+  
+  /// Get author name with fallback for deleted users
+  String get authorName => from?.name ?? '[Deleted User]';
+  
+  /// Get author ID with fallback for deleted users
+  String get authorId => from?.id ?? 'unknown';
+  
+  /// Check if the page has already replied to this comment
+  /// Returns true if any reply in the nested replies is from the specified pageId
+  bool hasPageReplied(String pageId) {
+    if (replies == null || replies!.isEmpty) return false;
+    return replies!.any((reply) => reply.from?.id == pageId);
   }
 }

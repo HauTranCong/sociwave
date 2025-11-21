@@ -44,7 +44,7 @@ class ProviderSetup {
         
         // Comments Provider
         ChangeNotifierProvider<CommentsProvider>(
-          create: (_) => CommentsProvider(storageService),
+          create: (_) => CommentsProvider(),
         ),
         
         // Monitor Provider
@@ -87,7 +87,7 @@ class ProviderSetup {
         // Comments Provider with config
         ChangeNotifierProvider<CommentsProvider>(
           create: (_) {
-            final provider = CommentsProvider(storageService);
+            final provider = CommentsProvider();
             provider.initialize(configProvider.config);
             return provider;
           },

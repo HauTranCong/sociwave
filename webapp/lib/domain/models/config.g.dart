@@ -13,6 +13,7 @@ Config _$ConfigFromJson(Map<String, dynamic> json) => Config(
   useMockData: json['useMockData'] as bool? ?? false,
   reelsLimit: (json['reels_limit'] as num?)?.toInt() ?? 25,
   commentsLimit: (json['comments_limit'] as num?)?.toInt() ?? 100,
+  repliesLimit: (json['replies_limit'] as num?)?.toInt() ?? 100,
 );
 
 Map<String, dynamic> _$ConfigToJson(Config instance) => <String, dynamic>{
@@ -22,4 +23,5 @@ Map<String, dynamic> _$ConfigToJson(Config instance) => <String, dynamic>{
   'useMockData': instance.useMockData,
   'reels_limit': instance.reelsLimit,
   'comments_limit': instance.commentsLimit,
+  'replies_limit': instance.repliesLimit,
 };

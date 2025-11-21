@@ -25,6 +25,7 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _keywordsController;
   late TextEditingController _replyMessageController;
+  late TextEditingController _inboxMessageController;
   bool _enabled = true;
   bool _isLoading = false;
 
@@ -46,14 +47,19 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
         _replyMessageController = TextEditingController(
           text: rule.replyMessage,
         );
+        _inboxMessageController = TextEditingController(
+          text: rule.inboxMessage ?? '',
+        );
         _enabled = rule.enabled;
       } else {
         _keywordsController = TextEditingController();
         _replyMessageController = TextEditingController();
+        _inboxMessageController = TextEditingController();
       }
     } else {
       _keywordsController = TextEditingController();
       _replyMessageController = TextEditingController();
+      _inboxMessageController = TextEditingController();
     }
   }
 
@@ -61,6 +67,7 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
   void dispose() {
     _keywordsController.dispose();
     _replyMessageController.dispose();
+    _inboxMessageController.dispose();
     super.dispose();
   }
 
@@ -78,10 +85,12 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
         .toList();
 
     // Create rule
+    final inboxMessage = _inboxMessageController.text.trim();
     final rule = Rule(
       objectId: widget.reelId!,
       matchWords: keywords,
       replyMessage: _replyMessageController.text.trim(),
+      inboxMessage: inboxMessage.isEmpty ? null : inboxMessage,
       enabled: _enabled,
     );
 
@@ -268,6 +277,26 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
                     }
                     if (value.trim().length < 3) {
                       return 'Reply message is too short';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Private Reply Field (Optional)
+                TextFormField(
+                  controller: _inboxMessageController,
+                  decoration: const InputDecoration(
+                    labelText: 'Private Reply (Optional)',
+                    hintText: 'Send a private message to the commenter...',
+                    helperText: 'This private message will be sent to the user\'s Messenger after replying',
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                  maxLines: 4,
+                  validator: (value) {
+                    // Optional field - no validation required
+                    if (value != null && value.trim().isNotEmpty && value.trim().length < 3) {
+                      return 'Private reply is too short';
                     }
                     return null;
                   },

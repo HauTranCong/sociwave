@@ -24,6 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _pageIdController;
   late TextEditingController _reelsLimitController;
   late TextEditingController _commentsLimitController;
+  late TextEditingController _repliesLimitController;
   bool _useMockData = false;
   bool _isLoading = false;
 
@@ -40,6 +41,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _commentsLimitController = TextEditingController(
       text: config.commentsLimit.toString(),
     );
+    _repliesLimitController = TextEditingController(
+      text: config.repliesLimit.toString(),
+    );
     _useMockData = config.useMockData;
   }
 
@@ -50,6 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _pageIdController.dispose();
     _reelsLimitController.dispose();
     _commentsLimitController.dispose();
+    _repliesLimitController.dispose();
     super.dispose();
   }
 
@@ -65,6 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       useMockData: _useMockData,
       reelsLimit: int.tryParse(_reelsLimitController.text.trim()) ?? 25,
       commentsLimit: int.tryParse(_commentsLimitController.text.trim()) ?? 100,
+      repliesLimit: int.tryParse(_repliesLimitController.text.trim()) ?? 100,
     );
 
     final configProvider = context.read<ConfigProvider>();
@@ -204,7 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Configure how many items to fetch per API request',
+                  'Configure how many items to fetch per API request. Set "Replies Limit" to control how many nested replies are fetched for each comment.',
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
@@ -250,6 +256,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Comments limit is required';
+                    }
+                    final limit = int.tryParse(value);
+                    if (limit == null) {
+                      return 'Please enter a valid number';
+                    }
+                    if (limit < 1 || limit > 100) {
+                      return 'Limit must be between 1 and 100';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Replies Limit Field
+                TextFormField(
+                  controller: _repliesLimitController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Replies Limit',
+                    hintText: 'Max replies per comment (1-100)',
+                    prefixIcon: Icon(Icons.reply),
+                    helperText: 'Number of replies to fetch per comment (default: 100)',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Replies limit is required';
                     }
                     final limit = int.tryParse(value);
                     if (limit == null) {

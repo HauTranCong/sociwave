@@ -43,7 +43,7 @@ class ApiConstants {
   static const String reelFields = 'id,description,updated_time';
   
   // Comment Fields
-  static const String commentFields = 'id,message,from,created_time,updated_time';
+  static const String commentFields = 'id,message,from,created_time,updated_time,comments.limit(100).summary(true){id,message,from,created_time}';
   
   // User Fields
   static const String userFields = 'id,name';

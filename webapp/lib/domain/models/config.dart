@@ -28,6 +28,10 @@ class Config extends Equatable {
   @JsonKey(name: 'comments_limit', defaultValue: 100)
   final int commentsLimit;
 
+  /// Maximum number of replies to fetch per comment (1-100)
+  @JsonKey(name: 'replies_limit', defaultValue: 100)
+  final int repliesLimit;
+
   const Config({
     required this.token,
     required this.version,
@@ -35,6 +39,7 @@ class Config extends Equatable {
     this.useMockData = false,
     this.reelsLimit = 25,
     this.commentsLimit = 100,
+    this.repliesLimit = 100,
   });
 
   /// Default configuration with empty values
@@ -46,6 +51,7 @@ class Config extends Equatable {
       useMockData: false,
       reelsLimit: 25,
       commentsLimit: 100,
+      repliesLimit: 100,
     );
   }
 
@@ -63,6 +69,7 @@ class Config extends Equatable {
     bool? useMockData,
     int? reelsLimit,
     int? commentsLimit,
+    int? repliesLimit,
   }) {
     return Config(
       token: token ?? this.token,
@@ -71,6 +78,7 @@ class Config extends Equatable {
       useMockData: useMockData ?? this.useMockData,
       reelsLimit: reelsLimit ?? this.reelsLimit,
       commentsLimit: commentsLimit ?? this.commentsLimit,
+      repliesLimit: repliesLimit ?? this.repliesLimit,
     );
   }
 
@@ -90,10 +98,11 @@ class Config extends Equatable {
     useMockData,
     reelsLimit,
     commentsLimit,
+    repliesLimit,
   ];
 
   @override
   String toString() {
-    return 'Config(version: $version, pageId: $pageId, useMockData: $useMockData, reelsLimit: $reelsLimit, commentsLimit: $commentsLimit)';
+    return 'Config(version: $version, pageId: $pageId, useMockData: $useMockData, reelsLimit: $reelsLimit, commentsLimit: $commentsLimit, repliesLimit: $repliesLimit)';
   }
 }

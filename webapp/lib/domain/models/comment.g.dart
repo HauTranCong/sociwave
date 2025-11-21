@@ -15,7 +15,9 @@ Map<String, dynamic> _$CommentAuthorToJson(CommentAuthor instance) =>
 Comment _$CommentFromJson(Map<String, dynamic> json) => Comment(
   id: json['id'] as String,
   message: json['message'] as String,
-  from: CommentAuthor.fromJson(json['from'] as Map<String, dynamic>),
+  from: json['from'] == null
+      ? null
+      : CommentAuthor.fromJson(json['from'] as Map<String, dynamic>),
   createdTime: DateTime.parse(json['created_time'] as String),
   updatedTime: json['updated_time'] == null
       ? null

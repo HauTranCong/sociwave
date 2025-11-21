@@ -180,23 +180,21 @@ class BackgroundMonitorService {
 
       AppLogger.debug('Fetched ${reels.length} reels');
 
-      // 3. Load replied comments to avoid duplicates
-      final repliedComments = await _storage.loadRepliedComments();
+      // 3. Load config to get page ID
+      final config = await _storage.loadConfig();
+      final pageId = config?.pageId ?? '';
 
       // 4. Process each reel
       for (final reel in reels) {
         try {
-          await _processReel(reel, enabledRules, repliedComments);
+          await _processReel(reel, enabledRules, pageId);
         } catch (e, stackTrace) {
           AppLogger.error('Error processing reel ${reel.id}', e, stackTrace);
           // Continue with next reel
         }
       }
 
-      // 5. Save updated replied comments
-      await _storage.saveRepliedComments(repliedComments);
-
-      // 6. Record statistics
+      // 5. Record statistics
       await _recordMonitoringCheck();
 
       final duration = DateTime.now().difference(startTime);
@@ -228,7 +226,7 @@ class BackgroundMonitorService {
   Future<void> _processReel(
     Reel reel,
     Map<String, Rule> enabledRules,
-    Set<String> repliedComments,
+    String pageId,
   ) async {
     // Check if this reel has an enabled rule
     final rule = enabledRules[reel.id];
@@ -252,8 +250,8 @@ class BackgroundMonitorService {
 
     // Process each comment
     for (final comment in comments) {
-      // Skip if already replied
-      if (repliedComments.contains(comment.id)) {
+      // Skip if page has already replied (check nested replies)
+      if (comment.hasPageReplied(pageId)) {
         continue;
       }
 
@@ -270,8 +268,7 @@ class BackgroundMonitorService {
             await _apiService!.replyToComment(comment.id, rule.replyMessage);
           }
 
-          // Mark as replied
-          repliedComments.add(comment.id);
+          // Increment total replies counter
           await _storage.incrementTotalReplies();
 
           // Notify provider about stats update
@@ -280,6 +277,47 @@ class BackgroundMonitorService {
           AppLogger.info(
             'Auto-replied to comment ${comment.id} on reel ${reel.id}',
           );
+
+          // Send inbox message if configured
+          // Note: Facebook only allows one private reply per comment, so no need to track
+          // We can send even if 'from' is null - Facebook uses comment_id, not user id
+          if (rule.inboxMessage != null && rule.inboxMessage!.isNotEmpty) {
+            try {
+              if (_apiService != null) {
+                // Use Facebook's Private Replies API
+                // This sends a message to Messenger using the comment_id
+                // Works even if the user hasn't messaged the page before
+                // Works even if we don't know who the user is (from is null)
+                // Facebook enforces "one private reply per comment" automatically
+                await _apiService!.sendPrivateReply(
+                  comment.id,
+                  rule.inboxMessage!,
+                );
+                
+                AppLogger.info(
+                  '📬 Sent private reply to ${comment.authorName} for comment ${comment.id}',
+                );
+              }
+            } catch (e, stackTrace) {
+              // Check if it's a "user unavailable" error (common with Facebook messaging)
+              final errorMessage = e.toString();
+              if (errorMessage.contains('#551') || 
+                  errorMessage.contains('unavailable') ||
+                  errorMessage.contains('User is unavailable') ||
+                  errorMessage.contains('không có mặt')) {
+                AppLogger.warning(
+                  '⚠️ User ${comment.authorName} is unavailable for private messages (may have blocked page or privacy restrictions)',
+                );
+              } else {
+                AppLogger.error(
+                  'Failed to send private reply to ${comment.authorId}',
+                  e,
+                  stackTrace,
+                );
+              }
+              // Continue - don't fail the whole process
+            }
+          }
         } catch (e, stackTrace) {
           AppLogger.error(
             'Failed to reply to comment ${comment.id}',
