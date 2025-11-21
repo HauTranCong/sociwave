@@ -54,10 +54,10 @@ sociwave/
 │   ├── nginx.conf       # Production Nginx config
 │   └── .dockerignore    # Build optimization
 ├── docs/                # Comprehensive documentation
+│   ├── ARCHITECTURE_DESIGN.md   # System architecture & design
 │   ├── DEPLOYMENT_GUIDE.md      # Deploy to Netlify/Vercel/GitHub Pages
 │   ├── DOCKER_DEPLOYMENT.md     # Docker deployment guide
-│   ├── PROJECT_STATUS.md        # Current status & tech decisions
-│   └── PROGRESS_REPORT_NOV_2025.md  # Detailed progress report
+│   └── PROJECT_STATUS.md        # Current status & tech decisions
 ├── scripts/             # Build and deployment automation
 │   ├── build.sh         # Flutter build script
 │   ├── docker-build.sh  # Docker build shortcut
@@ -255,10 +255,10 @@ For detailed Docker deployment instructions, see [DOCKER_DEPLOYMENT.md](docs/DOC
 
 ## 📚 Documentation
 
+- [**ARCHITECTURE_DESIGN.md**](docs/ARCHITECTURE_DESIGN.md) - System architecture and design
 - [**DEPLOYMENT_GUIDE.md**](docs/DEPLOYMENT_GUIDE.md) - Deploy to Netlify, Vercel, or GitHub Pages
 - [**DOCKER_DEPLOYMENT.md**](docs/DOCKER_DEPLOYMENT.md) - Complete Docker deployment guide
 - [**PROJECT_STATUS.md**](docs/PROJECT_STATUS.md) - Current project status and decisions
-- [**PROGRESS_REPORT_NOV_2025.md**](docs/PROGRESS_REPORT_NOV_2025.md) - Detailed progress report
 
 ---
 

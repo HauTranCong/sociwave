@@ -244,10 +244,10 @@ All documentation is in the `docs/` folder:
 
 ```
 docs/
+├── ARCHITECTURE_DESIGN.md       # System architecture & design
 ├── DEPLOYMENT_GUIDE.md          # Web hosting deployment guide
 ├── DOCKER_DEPLOYMENT.md         # Docker deployment guide
-├── PROJECT_STATUS.md            # This file - Current status
-└── PROGRESS_REPORT_NOV_2025.md  # Detailed progress report
+└── PROJECT_STATUS.md            # This file - Current status
 ```
 
 **Main README:** `/README.md` - Project overview and quick start
