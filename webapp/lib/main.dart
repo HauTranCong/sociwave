@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/utils/logger.dart';
@@ -10,6 +12,11 @@ import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Use path-based URLs on web (removes "#" from routes)
+  if (kIsWeb) {
+    setUrlStrategy(PathUrlStrategy());
+  }
 
   // Load .env file for test credentials (safe to fail if file is missing)
   try {
