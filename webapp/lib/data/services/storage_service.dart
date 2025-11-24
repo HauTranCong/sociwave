@@ -3,7 +3,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/storage_keys.dart';
 import '../../core/utils/logger.dart';
-import '../../domain/models/config.dart';
 import '../../domain/models/reel.dart';
 import '../../domain/models/rule.dart';
 
@@ -24,78 +23,6 @@ class StorageService {
       aOptions: AndroidOptions(encryptedSharedPreferences: true),
     );
     return StorageService(prefs, secureStorage);
-  }
-
-  // ==================== Configuration ====================
-
-  /// Save configuration (token stored securely, rest in preferences)
-  Future<void> saveConfig(Config config) async {
-    try {
-      // Store token securely
-      await _secureStorage.write(
-        key: StorageKeys.apiTokenKey,
-        value: config.token,
-      );
-
-      // Store other config in preferences
-      final configData = {
-        'version': config.version,
-        'page_id': config.pageId,
-        'use_mock_data': config.useMockData,
-        'reels_limit': config.reelsLimit,
-        'comments_limit': config.commentsLimit,
-      };
-      await _prefs.setString(StorageKeys.configKey, jsonEncode(configData));
-
-      AppLogger.info('Config saved successfully');
-    } catch (e, stackTrace) {
-      AppLogger.error('Failed to save config', e, stackTrace);
-      rethrow;
-    }
-  }
-
-  /// Load configuration
-  Future<Config?> loadConfig() async {
-    try {
-      final configJson = _prefs.getString(StorageKeys.configKey);
-      if (configJson == null) {
-        AppLogger.info('No saved config found');
-        return null;
-      }
-
-      final configData = jsonDecode(configJson) as Map<String, dynamic>;
-
-      // Get token from secure storage
-      final token =
-          await _secureStorage.read(key: StorageKeys.apiTokenKey) ?? '';
-
-      final config = Config(
-        token: token,
-        version: configData['version'] as String? ?? 'v24.0',
-        pageId: configData['page_id'] as String? ?? 'me',
-        useMockData: configData['use_mock_data'] as bool? ?? false,
-        reelsLimit: configData['reels_limit'] as int? ?? 25,
-        commentsLimit: configData['comments_limit'] as int? ?? 100,
-      );
-
-      AppLogger.info('Config loaded successfully');
-      return config;
-    } catch (e, stackTrace) {
-      AppLogger.error('Failed to load config', e, stackTrace);
-      return null;
-    }
-  }
-
-  /// Clear configuration
-  Future<void> clearConfig() async {
-    try {
-      await _secureStorage.delete(key: StorageKeys.apiTokenKey);
-      await _prefs.remove(StorageKeys.configKey);
-      AppLogger.info('Config cleared');
-    } catch (e, stackTrace) {
-      AppLogger.error('Failed to clear config', e, stackTrace);
-      rethrow;
-    }
   }
 
   // ==================== Rules ====================

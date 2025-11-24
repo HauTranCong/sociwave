@@ -135,14 +135,18 @@ class FacebookApiService {
             .toList();
 
         // Count comments without author info (deleted/restricted users)
-        final commentsWithoutAuthor = parentComments.where((c) => c.from == null).length;
+        final commentsWithoutAuthor = parentComments
+            .where((c) => c.from == null)
+            .length;
         if (commentsWithoutAuthor > 0) {
           AppLogger.debug(
-            'Found $commentsWithoutAuthor comment(s) without author info (deleted/restricted users) - will show as "[Unknown User]"'
+            'Found $commentsWithoutAuthor comment(s) without author info (deleted/restricted users) - will show as "[Unknown User]"',
           );
         }
-        
-        AppLogger.info('🌐 API: Fetched ${parentComments.length} user comments');
+
+        AppLogger.info(
+          '🌐 API: Fetched ${parentComments.length} user comments',
+        );
         return parentComments;
       } else {
         throw _handleError(response);
@@ -180,7 +184,7 @@ class FacebookApiService {
   /// Send a private reply to a comment using Facebook's Private Replies API
   ///
   /// This sends a message to the person's Messenger inbox with a link to their comment.
-  /// 
+  ///
   /// Key differences from regular messaging:
   /// - Uses comment_id in recipient field (not user id)
   /// - Works for commenters who haven't messaged the page
@@ -189,7 +193,7 @@ class FacebookApiService {
   /// - When user responds, you can continue the conversation (24h window)
   ///
   /// Requires pages_messaging permission
-  /// 
+  ///
   /// Reference: https://developers.facebook.com/docs/messenger-platform/send-messages/private-replies
   Future<Map<String, dynamic>> sendPrivateReply(
     String commentId,
@@ -199,24 +203,18 @@ class FacebookApiService {
       // Use the Private Replies API - send to page's messages endpoint
       // with comment_id in recipient (not the old private_replies endpoint)
       final endpoint = '${config.pageId}/messages';
-      
+
       AppLogger.debug('📤 Sending private reply for comment $commentId');
-      
+
       final response = await _dio.post(
         endpoint,
         queryParameters: _buildParams(),
-        options: Options(
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        ),
+        options: Options(headers: {'Content-Type': 'application/json'}),
         data: {
           'recipient': {
             'comment_id': commentId, // Use comment_id instead of user id
           },
-          'message': {
-            'text': message,
-          },
+          'message': {'text': message},
         },
       );
 
@@ -265,17 +263,13 @@ class FacebookApiService {
     try {
       // Use the Send API endpoint with user id
       final endpoint = '${config.pageId}/messages';
-      
+
       AppLogger.debug('📤 Sending direct message to user $userId');
-      
+
       final response = await _dio.post(
         endpoint,
         queryParameters: _buildParams(),
-        options: Options(
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        ),
+        options: Options(headers: {'Content-Type': 'application/json'}),
         data: {
           'recipient': {'id': userId},
           'messaging_type': 'RESPONSE',
@@ -296,30 +290,37 @@ class FacebookApiService {
         final error = errorData['error'] as Map<String, dynamic>;
         final errorCode = error['code'] as int?;
         final errorMessage = error['message'] as String? ?? 'Unknown error';
-        
+
         AppLogger.debug('📭 Facebook API Error $errorCode: $errorMessage');
-        
+
         // Error 551: User unavailable (blocked, deleted, or hasn't messaged page)
         if (errorCode == 551) {
-          AppLogger.warning('📭 Cannot message user $userId: User unavailable or hasn\'t initiated conversation');
-          throw Exception('User is unavailable for messaging. They may need to message your page first.');
+          AppLogger.warning(
+            '📭 Cannot message user $userId: User unavailable or hasn\'t initiated conversation',
+          );
+          throw Exception(
+            'User is unavailable for messaging. They may need to message your page first.',
+          );
         }
         // Error 10: Permission denied
         else if (errorCode == 10) {
           AppLogger.error('📭 Missing pages_messaging permission');
-          throw Exception('Missing required Facebook permission: pages_messaging');
+          throw Exception(
+            'Missing required Facebook permission: pages_messaging',
+          );
         }
         // Error 200: Permission from user required
         else if (errorCode == 200) {
           AppLogger.warning('📭 User has not granted messaging permission');
-          throw Exception('User has not granted permission to receive messages');
-        }
-        else {
+          throw Exception(
+            'User has not granted permission to receive messages',
+          );
+        } else {
           AppLogger.error('📭 Facebook API error: $errorCode - $errorMessage');
           throw Exception('Facebook API error: $errorMessage');
         }
       }
-      
+
       AppLogger.error('Failed to send private message', e);
       rethrow;
     }

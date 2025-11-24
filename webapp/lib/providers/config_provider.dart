@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../core/utils/logger.dart';
 import '../data/services/storage_service.dart';
 import '../data/services/facebook_api_service.dart';
+import '../data/services/api_client.dart';
 import '../domain/models/config.dart';
 
 /// Provider for managing application configuration
@@ -34,16 +35,11 @@ class ConfigProvider extends ChangeNotifier {
     try {
       _setLoading(true);
       _clearError();
-
-      final savedConfig = await _storage.loadConfig();
-      if (savedConfig != null) {
-        _config = savedConfig;
-        AppLogger.info('Config loaded from storage');
-      } else {
-        _config = Config.initial();
-        AppLogger.info('Using initial config');
-      }
-
+      // Always load configuration from backend API (source of truth)
+      final apiClient = ApiClient();
+      final backendConfig = await apiClient.getConfig();
+      _config = backendConfig;
+      AppLogger.info('Config loaded from backend');
       notifyListeners();
     } catch (e, stackTrace) {
       _setError('Failed to load config: $e');
@@ -58,11 +54,13 @@ class ConfigProvider extends ChangeNotifier {
     try {
       _setLoading(true);
       _clearError();
+      // Persist to backend API (source of truth)
+      final apiClient = ApiClient();
+      await apiClient.saveConfig(config);
 
-      await _storage.saveConfig(config);
       _config = config;
 
-      AppLogger.info('Config saved successfully');
+      AppLogger.info('Config saved successfully (backend)');
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
@@ -99,8 +97,6 @@ class ConfigProvider extends ChangeNotifier {
     try {
       _setLoading(true);
       _clearError();
-
-      await _storage.clearConfig();
       _config = Config.initial();
 
       AppLogger.info('Config cleared');

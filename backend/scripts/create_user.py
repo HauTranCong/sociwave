@@ -17,8 +17,8 @@ def create_user():
             print("User 'testuser' already exists.")
             return
 
-        hashed_password = get_password_hash("testpassword")
-        db_user = models.UserModel(username="testuser", hashed_password=hashed_password)
+        hashed_password = get_password_hash("baoqing")
+        db_user = models.UserModel(username="baoqing", hashed_password=hashed_password)
         db.add(db_user)
         db.commit()
         db.refresh(db_user)

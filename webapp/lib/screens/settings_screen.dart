@@ -277,7 +277,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     labelText: 'Replies Limit',
                     hintText: 'Max replies per comment (1-100)',
                     prefixIcon: Icon(Icons.reply),
-                    helperText: 'Number of replies to fetch per comment (default: 100)',
+                    helperText:
+                        'Number of replies to fetch per comment (default: 100)',
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {

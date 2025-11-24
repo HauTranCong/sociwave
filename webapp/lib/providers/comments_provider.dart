@@ -1,16 +1,16 @@
 import 'package:flutter/foundation.dart';
 import '../core/utils/logger.dart';
-import '../data/services/facebook_api_service.dart';
 import '../data/services/mock_api_service.dart';
+import '../data/services/api_client.dart';
 import '../domain/models/comment.dart';
 import '../domain/models/config.dart';
 
 /// Provider for managing comments
 class CommentsProvider extends ChangeNotifier {
-  FacebookApiService? _apiService;
+  final ApiClient _apiClient = ApiClient();
   MockApiService? _mockApiService;
   Config? _config;
-  
+
   final Map<String, List<Comment>> _commentsByReel = {};
   bool _isLoading = false;
   String? _error;
@@ -23,7 +23,7 @@ class CommentsProvider extends ChangeNotifier {
     if (_currentReelId == null) return [];
     return _commentsByReel[_currentReelId] ?? [];
   }
-  
+
   bool get isLoading => _isLoading;
   String? get error => _error;
   String? get currentReelId => _currentReelId;
@@ -35,12 +35,10 @@ class CommentsProvider extends ChangeNotifier {
     _config = config;
     if (config.useMockData) {
       _mockApiService = MockApiService();
-      _apiService = null;
       AppLogger.info('📝 Comments: Using mock API');
     } else {
-      _apiService = FacebookApiService(config);
       _mockApiService = null;
-      AppLogger.info('📝 Comments: Using real API');
+      AppLogger.info('📝 Comments: Using backend API');
     }
   }
 
@@ -62,22 +60,18 @@ class CommentsProvider extends ChangeNotifier {
       List<Comment> fetchedComments;
       if (_mockApiService != null) {
         fetchedComments = await _mockApiService!.getComments(reelId);
-      } else if (_apiService != null) {
-        fetchedComments = await _apiService!.getComments(reelId);
       } else {
-        throw Exception('API service not initialized');
+        fetchedComments = await _apiClient.getComments(reelId);
       }
 
       // Mark replied status based on nested replies (check if page has already replied)
       final pageId = _config?.pageId ?? '';
       final commentsWithStatus = fetchedComments.map((comment) {
-        return comment.copyWith(
-          hasReplied: comment.hasPageReplied(pageId),
-        );
+        return comment.copyWith(hasReplied: comment.hasPageReplied(pageId));
       }).toList();
 
       _commentsByReel[reelId] = commentsWithStatus;
-      
+
       AppLogger.info('📝 Loaded ${commentsWithStatus.length} comments');
       notifyListeners();
     } catch (e, stackTrace) {
@@ -104,10 +98,8 @@ class CommentsProvider extends ChangeNotifier {
       // Post reply via API
       if (_mockApiService != null) {
         await _mockApiService!.replyToComment(commentId, message);
-      } else if (_apiService != null) {
-        await _apiService!.replyToComment(commentId, message);
       } else {
-        throw Exception('API service not initialized');
+        await _apiClient.replyToComment(commentId, message);
       }
 
       // Mark as replied
@@ -174,7 +166,10 @@ class CommentsProvider extends ChangeNotifier {
 
   /// Get total comment count across all reels
   int get totalCommentCount {
-    return _commentsByReel.values.fold(0, (sum, comments) => sum + comments.length);
+    return _commentsByReel.values.fold(
+      0,
+      (sum, comments) => sum + comments.length,
+    );
   }
 
   /// Get total new comment count across all reels

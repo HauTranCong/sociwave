@@ -4,27 +4,27 @@ import 'package:json_annotation/json_annotation.dart';
 part 'rule.g.dart';
 
 /// Rule for automated comment replies
-/// 
+///
 /// Corresponds to Python's rules.json structure
 @JsonSerializable(createFactory: false)
 class Rule extends Equatable {
   /// The object ID (reel/post) this rule applies to
   /// Not stored in JSON - used as the key in the rules map
   final String objectId;
-  
+
   /// List of keywords to match in comments (case-insensitive)
   /// Empty list or single "." means match all comments
   @JsonKey(name: 'match_words', defaultValue: [])
   final List<String> matchWords;
-  
+
   /// Reply message to post when keywords match
   @JsonKey(name: 'reply_message', defaultValue: '')
   final String replyMessage;
-  
+
   /// Optional private message to send (not yet implemented)
   @JsonKey(name: 'inbox_message')
   final String? inboxMessage;
-  
+
   /// Whether this rule is active
   @JsonKey(defaultValue: false)
   final bool enabled;
@@ -52,9 +52,11 @@ class Rule extends Equatable {
   factory Rule.fromJson(String objectId, Map<String, dynamic> json) {
     return Rule(
       objectId: objectId,
-      matchWords: (json['match_words'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList() ?? [],
+      matchWords:
+          (json['match_words'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       replyMessage: json['reply_message'] as String? ?? '',
       inboxMessage: json['inbox_message'] as String?,
       enabled: json['enabled'] as bool? ?? false,
@@ -62,7 +64,16 @@ class Rule extends Equatable {
   }
 
   /// Convert Rule to JSON (without objectId)
-  Map<String, dynamic> toJson() => _$RuleToJson(this);
+  Map<String, dynamic> toJson() {
+    return {
+      // Backend Pydantic model expects snake_case fields
+      'object_id': objectId,
+      'match_words': matchWords,
+      'reply_message': replyMessage,
+      'inbox_message': inboxMessage,
+      'enabled': enabled,
+    };
+  }
 
   /// Create a copy with modified fields
   Rule copyWith({
@@ -82,24 +93,24 @@ class Rule extends Equatable {
   }
 
   /// Check if a comment text matches this rule's keywords
-  /// 
+  ///
   /// Logic from Python:
   /// - If matchWords is null or empty, matches all
   /// - If matchWords contains single ".", matches all
   /// - Otherwise, checks if any keyword appears in comment (case-insensitive)
   bool matches(String commentText) {
     final lowerComment = commentText.toLowerCase();
-    
+
     // Empty or null match_words means match all
     if (matchWords.isEmpty) {
       return true;
     }
-    
+
     // Single "." means match all
     if (matchWords.length == 1 && matchWords[0] == '.') {
       return true;
     }
-    
+
     // Check if any keyword matches
     return matchWords.any((keyword) {
       return lowerComment.contains(keyword.toLowerCase());

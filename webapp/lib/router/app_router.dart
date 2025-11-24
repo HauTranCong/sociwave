@@ -27,12 +27,12 @@ class AppRouter {
       refreshListenable: authProvider,
       redirect: (context, state) {
         final isAuthenticated = authProvider.isAuthenticated;
-        final isLoading = authProvider.isLoading;
+        final isInitializing = authProvider.isInitializing;
         final isOnLoginPage = state.matchedLocation == login;
         final isOnSplashPage = state.matchedLocation == splash;
 
-        // Still loading, show splash
-        if (isLoading && !isOnSplashPage) {
+        // Still initializing auth state, show splash
+        if (isInitializing && !isOnSplashPage) {
           return splash;
         }
 
@@ -67,16 +67,14 @@ class AppRouter {
             GoRoute(
               path: dashboard,
               name: 'dashboard',
-              pageBuilder: (context, state) => NoTransitionPage(
-                child: const DashboardScreen(),
-              ),
+              pageBuilder: (context, state) =>
+                  NoTransitionPage(child: const DashboardScreen()),
             ),
             GoRoute(
               path: settings,
               name: 'settings',
-              pageBuilder: (context, state) => NoTransitionPage(
-                child: const SettingsScreen(),
-              ),
+              pageBuilder: (context, state) =>
+                  NoTransitionPage(child: const SettingsScreen()),
             ),
             GoRoute(
               path: ruleEditor,
@@ -109,9 +107,7 @@ class AppRouter {
       ],
       errorPageBuilder: (context, state) => NoTransitionPage(
         child: Scaffold(
-          body: Center(
-            child: Text('Page not found: ${state.uri}'),
-          ),
+          body: Center(child: Text('Page not found: ${state.uri}')),
         ),
       ),
     );

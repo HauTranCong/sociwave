@@ -1,17 +1,17 @@
 import 'package:flutter/foundation.dart';
 import '../core/utils/logger.dart';
-import '../data/services/facebook_api_service.dart';
 import '../data/services/mock_api_service.dart';
 import '../data/services/storage_service.dart';
+import '../data/services/api_client.dart';
 import '../domain/models/config.dart';
 import '../domain/models/reel.dart';
 
 /// Provider for managing video reels
 class ReelsProvider extends ChangeNotifier {
   final StorageService _storage;
-  FacebookApiService? _apiService;
+  final ApiClient _apiClient = ApiClient();
   MockApiService? _mockApiService;
-  
+
   List<Reel> _reels = [];
   bool _isLoading = false;
   String? _error;
@@ -30,12 +30,10 @@ class ReelsProvider extends ChangeNotifier {
   void initialize(Config config) {
     if (config.useMockData) {
       _mockApiService = MockApiService();
-      _apiService = null;
       AppLogger.info('🎬 Reels: Using mock API');
     } else {
-      _apiService = FacebookApiService(config);
       _mockApiService = null;
-      AppLogger.info('🎬 Reels: Using real API');
+      AppLogger.info('🎬 Reels: Using backend API');
     }
   }
 
@@ -61,10 +59,8 @@ class ReelsProvider extends ChangeNotifier {
       List<Reel> fetchedReels;
       if (_mockApiService != null) {
         fetchedReels = await _mockApiService!.getReels();
-      } else if (_apiService != null) {
-        fetchedReels = await _apiService!.getReels();
       } else {
-        throw Exception('API service not initialized');
+        fetchedReels = await _apiClient.getReels();
       }
 
       // Attach rule status to reels
@@ -92,7 +88,7 @@ class ReelsProvider extends ChangeNotifier {
   /// Attach rule status to reels
   Future<List<Reel>> _attachRuleStatus(List<Reel> reels) async {
     final rules = await _storage.loadRules();
-    
+
     return reels.map((reel) {
       final rule = rules[reel.id];
       return reel.copyWith(
@@ -112,7 +108,11 @@ class ReelsProvider extends ChangeNotifier {
   }
 
   /// Update reel rule status after rule change
-  void updateReelRuleStatus(String reelId, {required bool hasRule, required bool enabled}) {
+  void updateReelRuleStatus(
+    String reelId, {
+    required bool hasRule,
+    required bool enabled,
+  }) {
     final index = _reels.indexWhere((reel) => reel.id == reelId);
     if (index != -1) {
       _reels[index] = _reels[index].copyWith(

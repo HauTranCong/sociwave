@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/loading_overlay.dart';
 import '../core/constants/app_constants.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 // import '../core/utils/logger.dart';
 
 /// Login screen for user authentication
@@ -21,9 +20,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   String? _errorMessage;
-  bool _useEnvCredentials = false;
-  String? _envUsername;
-  String? _envPassword;
 
   @override
   void dispose() {
@@ -35,23 +31,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Read optional test credentials from .env (if provided)
-    _envUsername =
-        dotenv.env['TEST_USER'] ??
-        dotenv.env['LOGIN_USER'] ??
-        dotenv.env['APP_TEST_USERNAME'];
-    _envPassword =
-        dotenv.env['TEST_PASS'] ??
-        dotenv.env['LOGIN_PASS'] ??
-        dotenv.env['APP_TEST_PASSWORD'];
-
-    if ((_envUsername != null && _envUsername!.isNotEmpty) &&
-        (_envPassword != null && _envPassword!.isNotEmpty)) {
-      _useEnvCredentials = true;
-      // AppLogger.info('User: $_envUsername loaded from .env for testing');
-      // AppLogger.info('Password: $_envPassword loaded from .env for testing');
-    }
   }
 
   Future<void> _handleLogin() async {
@@ -65,20 +44,10 @@ class _LoginScreenState extends State<LoginScreen> {
     bool success = false;
 
     // If env credentials are provided, allow a local test login using them
-    if (_useEnvCredentials) {
-      final providedUser = _usernameController.text.trim();
-      final providedPass = _passwordController.text;
-      if (providedUser == _envUsername && providedPass == _envPassword) {
-        success = await authProvider.login(providedUser, providedPass);
-      }
-    } else {
-      success = await authProvider.login(
-        _usernameController.text.trim(),
-        _passwordController.text,
-      );
-    }
-
-    if (!mounted) return;
+    success = await authProvider.login(
+      _usernameController.text.trim(),
+      _passwordController.text,
+    );
 
     if (success) {
       // Navigation will be handled by router's redirect
@@ -269,9 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  _useEnvCredentials
-                                      ? 'Test credentials loaded from .env'
-                                      : 'Demo: Use any username/password (min 4 chars)',
+                                  'Contact the administrator for demo credentials.',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: theme.colorScheme.onSurfaceVariant,
                                   ),

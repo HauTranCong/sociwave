@@ -87,7 +87,7 @@ class Comment extends Equatable {
       author = CommentAuthor.fromJson(json['from'] as Map<String, dynamic>);
     }
     
-    // Handle nested replies
+    // Handle nested replies (Graph API or backend shape)
     List<Comment>? replies;
     if (json['comments'] != null) {
       final commentsData = json['comments'] as Map<String, dynamic>;
@@ -98,6 +98,12 @@ class Comment extends Equatable {
             .where((reply) => reply.from != null) // Filter out deleted user replies
             .toList();
       }
+    } else if (json['replies'] != null) {
+      final repliesData = json['replies'] as List<dynamic>;
+      replies = repliesData
+          .map((replyJson) => Comment.fromJson(replyJson as Map<String, dynamic>))
+          .where((reply) => reply.from != null)
+          .toList();
     }
     
     return Comment(

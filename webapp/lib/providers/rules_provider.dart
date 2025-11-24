@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../core/utils/logger.dart';
 import '../data/services/storage_service.dart';
+import '../data/services/api_client.dart';
 import '../domain/models/rule.dart';
 
 /// Provider for managing auto-reply rules
 class RulesProvider extends ChangeNotifier {
   final StorageService _storage;
-  
+  final ApiClient _apiClient = ApiClient();
+
   Map<String, Rule> _rules = {};
   bool _isLoading = false;
   String? _error;
@@ -30,10 +32,12 @@ class RulesProvider extends ChangeNotifier {
     try {
       _setLoading(true);
       _clearError();
+      // Load rules from backend (source of truth)
+      _rules = await _apiClient.getRules();
+      // Optionally mirror to local storage for offline/fast startup use
+      await _storage.saveRules(_rules);
 
-      _rules = await _storage.loadRules();
-      
-      AppLogger.info('Loaded ${_rules.length} rules');
+      AppLogger.info('Loaded ${_rules.length} rules from backend');
       notifyListeners();
     } catch (e, stackTrace) {
       _setError('Failed to load rules: $e');
@@ -63,11 +67,14 @@ class RulesProvider extends ChangeNotifier {
     try {
       _setLoading(true);
       _clearError();
-
-      await _storage.saveRule(rule.objectId, rule);
+      // Update local map
       _rules[rule.objectId] = rule;
-      
-      AppLogger.info('Saved rule for ${rule.objectId}');
+      // Persist full rule set to backend
+      await _apiClient.saveRules(_rules);
+      // Mirror to local storage
+      await _storage.saveRules(_rules);
+
+      AppLogger.info('Saved rule for ${rule.objectId} (backend + cache)');
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
@@ -127,10 +134,13 @@ class RulesProvider extends ChangeNotifier {
       _setLoading(true);
       _clearError();
 
-      await _storage.deleteRule(objectId);
       _rules.remove(objectId);
-      
-      AppLogger.info('Deleted rule for $objectId');
+      // Persist updated rules to backend
+      await _apiClient.saveRules(_rules);
+      // Mirror to local storage
+      await _storage.saveRules(_rules);
+
+      AppLogger.info('Deleted rule for $objectId (backend + cache)');
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
@@ -172,13 +182,13 @@ class RulesProvider extends ChangeNotifier {
       _setLoading(true);
       _clearError();
 
-      // Delete all rules individually
-      for (final objectId in _rules.keys.toList()) {
-        await _storage.deleteRule(objectId);
-      }
-      
       _rules.clear();
-      AppLogger.info('Cleared all rules');
+      // Persist empty rule set to backend
+      await _apiClient.saveRules(_rules);
+      // Clear local cache
+      await _storage.saveRules(_rules);
+
+      AppLogger.info('Cleared all rules (backend + cache)');
       notifyListeners();
       return true;
     } catch (e, stackTrace) {

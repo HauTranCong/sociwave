@@ -40,6 +40,7 @@ class ConfigService:
                 db_rule.inbox_message = rule_data.inbox_message
                 db_rule.enabled = rule_data.enabled
             else:
-                db_rule = RuleModel(object_id=object_id, **rule_data.dict())
+                # rule_data.dict() already includes object_id; avoid passing it twice
+                db_rule = RuleModel(**rule_data.dict())
                 self.db.add(db_rule)
         self.db.commit()

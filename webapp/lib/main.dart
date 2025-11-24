@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
 import 'core/constants/app_constants.dart';
@@ -16,16 +15,6 @@ void main() async {
   // Use path-based URLs on web (removes "#" from routes)
   if (kIsWeb) {
     setUrlStrategy(PathUrlStrategy());
-  }
-
-  // Load .env file for test credentials (safe to fail if file is missing)
-  try {
-    await dotenv.load(fileName: ".env");
-    AppLogger.info(
-      '.env loaded with keys: ${dotenv.env.keys.where((k) => k.isNotEmpty).length}',
-    );
-  } catch (e) {
-    AppLogger.info('.env not found or failed to load: $e');
   }
 
   AppLogger.info('${AppConstants.appName} starting...');

@@ -21,7 +21,14 @@ def get_config_service(db: Session = Depends(get_db)):
 
 def get_facebook_service(config_service: ConfigService = Depends(get_config_service)):
     config = config_service.load_config()
-    return FacebookService(access_token=config.get("accessToken"), page_id=config.get("pageId"))
+    return FacebookService(
+        access_token=config.accessToken,
+        page_id=config.pageId,
+        version=config.version,
+        reels_limit=config.reelsLimit,
+        comments_limit=config.commentsLimit,
+        replies_limit=config.repliesLimit,
+    )
 
 def get_monitor_service(facebook_service: FacebookService = Depends(get_facebook_service)):
     return MonitorService(facebook_service)
