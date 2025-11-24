@@ -47,8 +47,13 @@ class Rule(BaseModel):
         from_attributes = True
 
 class Config(BaseModel):
-    key: str
-    value: str
+    accessToken: str
+    pageId: str
+    version: str = "v20.0"
+    useMockData: bool = False
+    reelsLimit: int = 25
+    commentsLimit: int = 100
+    repliesLimit: int = 100
 
     class Config:
         from_attributes = True
@@ -68,4 +73,11 @@ class ConfigModel(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     key = Column(String, unique=True, index=True)
     value = Column(String)
+
+class UserModel(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
 

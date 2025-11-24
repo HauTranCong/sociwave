@@ -13,16 +13,16 @@ A cross-platform Flutter web application for automated Facebook Reel comment man
 
 ## ✨ Features
 
-- 🎬 **Reel Management** - Fetch and display all your Facebook video reels as cards
-- 📝 **Comment Monitoring** - Real-time comment tracking with auto-refresh (30s)
-- 🤖 **Automated Replies** - Customizable rules with keyword matching and conditions
-- 🔄 **Background Monitoring** - Check for new comments every 5 minutes
-- 📊 **Dashboard** - View statistics and monitoring status at a glance
-- 🔐 **Secure API Integration** - Facebook Graph API with token management
-- 🎨 **Modern UI** - Clean, responsive Material Design interface
-- 🚀 **Multiple Refresh Methods** - Manual, pull-to-refresh, auto-refresh, background
-- 🐳 **Docker Ready** - Containerized deployment with optimized Nginx
-- 🌐 **PWA Support** - Install as Progressive Web App on mobile/desktop
+- � **Full-Stack Application** - Flutter frontend with a powerful Python (FastAPI) backend.
+- �🎬 **Reel Management** - Fetch and display all your Facebook video reels.
+- 📝 **Comment Monitoring** - Real-time comment tracking.
+- 🤖 **Automated Replies** - Customizable rules with keyword matching.
+- 🔄 **24/7 Backend Monitoring** - A persistent backend service checks for new comments, so the app doesn't need to be open.
+- 📊 **Dashboard** - View statistics and monitoring status at a glance.
+- 🔐 **Secure API Integration** - All Facebook Graph API calls are handled by the backend.
+- 🎨 **Modern UI** - Clean, responsive Material Design interface.
+- � **Docker Ready** - Fully containerized frontend and backend for easy deployment.
+- 🌐 **PWA Support** - Install the web app on mobile/desktop.
 
 ---
 
@@ -30,38 +30,26 @@ A cross-platform Flutter web application for automated Facebook Reel comment man
 
 ```
 sociwave/
+├── backend/             # Python FastAPI Backend
+│   ├── app/             # Core application logic
+│   │   ├── api/         # API endpoints
+│   │   ├── core/        # Database and configuration
+│   │   ├── models/      # Pydantic and SQLAlchemy models
+│   │   └── services/    # Business logic
+│   ├── scripts/         # Test scripts
+│   ├── Dockerfile       # Backend Docker image
+│   └── requirements.txt # Python dependencies
 ├── webapp/              # Flutter application source code
-│   ├── lib/             # Main application code (6,500+ lines)
-│   │   ├── main.dart
-│   │   ├── core/        # Core utilities and base classes
-│   │   ├── data/        # Data layer (services, repositories)
-│   │   ├── domain/      # Domain layer (models, entities)
-│   │   ├── providers/   # State management (Riverpod)
-│   │   ├── router/      # Navigation and routing
-│   │   ├── screens/     # UI screens (Dashboard, Comments, Settings)
-│   │   ├── services/    # Business logic services
-│   │   ├── theme/       # App theming
-│   │   └── widgets/     # Reusable UI components
+│   ├── lib/             # Main application code
 │   ├── web/             # Web-specific assets
-│   │   ├── index.html   # SEO-optimized HTML
-│   │   ├── manifest.json # PWA manifest
-│   │   └── icons/       # PWA icons
-│   ├── build/web/       # Production build (31MB, ready to deploy)
+│   ├── build/web/       # Production build
 │   └── pubspec.yaml     # Dependencies
 ├── docker/              # Docker configuration files
-│   ├── Dockerfile       # Multi-stage build (Flutter + Nginx)
-│   ├── docker-compose.yml # Orchestration with health checks
-│   ├── nginx.conf       # Production Nginx config
-│   └── .dockerignore    # Build optimization
+│   ├── docker-compose.yml # Orchestrates both frontend and backend
+│   ├── Dockerfile       # Frontend Docker image (Flutter + Nginx)
+│   └── nginx.conf       # Production Nginx config
 ├── docs/                # Comprehensive documentation
-│   ├── ARCHITECTURE_DESIGN.md   # System architecture & design
-│   ├── DEPLOYMENT_GUIDE.md      # Deploy to Netlify/Vercel/GitHub Pages
-│   ├── DOCKER_DEPLOYMENT.md     # Docker deployment guide
-│   └── PROJECT_STATUS.md        # Current status & tech decisions
 ├── scripts/             # Build and deployment automation
-│   ├── build.sh         # Flutter build script
-│   ├── docker-build.sh  # Docker build shortcut
-│   └── docker-deploy.sh # Interactive Docker deployment
 └── README.md            # This file
 ```
 
@@ -72,97 +60,74 @@ sociwave/
 ### Prerequisites
 
 - [Flutter SDK](https://flutter.dev/docs/get-started/install) (3.x or higher)
-- [Dart SDK](https://dart.dev/get-dart) (3.x or higher)
+- [Python](https://www.python.org/downloads/) (3.9 or higher)
+- [Docker](https://www.docker.com/products/docker-desktop) (for containerized deployment)
 - Facebook App with Graph API access
-- Web browser (Chrome, Firefox, Safari, or Edge)
-- Docker (optional, for containerized deployment)
 
-### Installation
+### Running the Full Application (Frontend + Backend)
+
+The easiest way to run the entire application is with Docker Compose.
 
 1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/HauTranCong/sociwave.git
+   cd sociwave
+   ```
 
-```bash
-git clone https://github.com/HauTranCong/sociwave.git
-cd sociwave/webapp
-```
+2. **Configure the backend:**
+   - Open `backend/scripts/test_api.py` and replace `"YOUR_ACCESS_TOKEN"` and `"YOUR_PAGE_ID"` with your Facebook credentials.
 
-2. **Install dependencies:**
+3. **Run with Docker Compose:**
+   ```bash
+   docker-compose -f docker/docker-compose.yml up --build -d
+   ```
 
-```bash
-flutter pub get
-```
+4. **Initialize the backend configuration:**
+   ```bash
+   # This script will save your credentials to the backend's database
+   docker-compose -f docker/docker-compose.yml exec sociwave-backend python scripts/test_api.py
+   ```
 
-3. **Run the app:**
+**Access the application:** http://localhost:8080
 
-```bash
-# Development mode with hot reload
-flutter run -d chrome --web-port 8080
+### Manual Setup
 
-# Or run on local web server
-flutter run -d web-server --web-port 8080
-```
+If you prefer to run the frontend and backend separately without Docker:
 
-**Access:** http://localhost:8080
+1.  **Run the Backend:**
+    ```bash
+    cd backend
+    python -m venv .venv
+    # Activate the virtual environment (Windows)
+    .venv\Scripts\activate
+    # Or on macOS/Linux
+    # source .venv/bin/activate
+    pip install -r requirements.txt
+    uvicorn main:app --reload
+    ```
 
-### Building for Production
-
-```bash
-cd webapp
-
-# Build optimized production version
-flutter build web --release --tree-shake-icons
-
-# Serve locally for testing
-cd build/web
-python3 -m http.server 8000
-```
-
-**Access:** http://localhost:8000
+2.  **Run the Frontend:**
+    ```bash
+    cd webapp
+    flutter pub get
+    flutter run -d chrome --web-port 8080
+    ```
 
 ---
 
 ## 🐳 Docker Deployment
 
-### Quick Start with Docker
+The application is fully containerized. The `docker-compose.yml` file in the `docker` directory will build and run both the Flutter web app (served with Nginx) and the FastAPI backend.
 
 ```bash
-# Build and run with Docker Compose
-docker-compose up -d
+# Build and run both services in detached mode
+docker-compose -f docker/docker-compose.yml up --build -d
 
-# Access the application
-open http://localhost:8080
+# Stop the services
+docker-compose -f docker/docker-compose.yml down
 ```
 
-### Manual Docker Build
-
-```bash
-# Build the Docker image
-docker build -t sociwave:latest -f docker/Dockerfile .
-
-# Run the container
-docker run -d -p 8080:80 --name sociwave sociwave:latest
-
-# View logs
-docker logs -f sociwave
-```
-
-### Interactive Deployment Script
-
-```bash
-# Use the interactive deployment menu
-./scripts/docker-deploy.sh
-```
-
-**Docker Features:**
-
-- ✅ Multi-stage build (~40MB final image)
-- ✅ Nginx with gzip compression
-- ✅ Static asset caching (1 year)
-- ✅ Health checks & auto-restart
-- ✅ Security headers
-
-For detailed Docker deployment instructions, see [DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md).
-
+For more detailed instructions, see [DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md).
 ---
 
 ## 📱 Application Screens
@@ -230,26 +195,26 @@ For detailed Docker deployment instructions, see [DOCKER_DEPLOYMENT.md](docs/DOC
 ### Technology Stack
 
 - **Frontend:** Flutter 3.x (Dart)
-- **State Management:** Riverpod
+- **Backend:** Python 3.9+ with FastAPI
+- **Database:** SQLite (via SQLAlchemy)
+- **State Management:** Provider
 - **Routing:** GoRouter
 - **HTTP Client:** Dio
-- **Storage:** Shared Preferences
 - **Deployment:** Docker + Nginx
 
 ### Design Patterns
 
-- **Clean Architecture** - Separation of concerns
-- **Repository Pattern** - Data abstraction
-- **Provider Pattern** - State management
-- **Service Layer** - Business logic isolation
+- **Full-Stack Clean Architecture** - Separation of concerns across frontend and backend.
+- **Repository Pattern** - Data abstraction.
+- **Provider Pattern** - State management in Flutter.
+- **Service Layer** - Business logic isolation in both frontend and backend.
 
 ### Code Quality
 
-- ✅ 0 compilation errors
-- ✅ 0 critical warnings
-- ✅ Clean architecture principles
-- ✅ Comprehensive logging
-- ✅ Secure token management
+- ✅ Clean architecture principles applied to both Flutter and FastAPI.
+- ✅ Comprehensive logging.
+- ✅ Secure token management handled by the backend.
+- ✅ Asynchronous task handling for non-blocking monitoring.
 
 ---
 
