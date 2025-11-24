@@ -9,6 +9,8 @@ services:
       - "8080:80"
     container_name: sociwave-web
     restart: unless-stopped
+    depends_on:
+      - sociwave-backend
     
     # Environment variables (optional)
     environment:
@@ -41,6 +43,19 @@ services:
         max-file: "3"
     
     # Networks (optional)
+    networks:
+      - sociwave-network
+
+  sociwave-backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    container_name: sociwave-backend
+    restart: unless-stopped
+    volumes:
+      - ../backend:/app
     networks:
       - sociwave-network
 
