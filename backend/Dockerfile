@@ -1,5 +1,6 @@
 # Dockerfile for FastAPI backend
-FROM python:3.9-slim
+# Pin to Python 3.12 for compatibility with the codebase
+FROM python:3.12.8-slim
 
 WORKDIR /app
 

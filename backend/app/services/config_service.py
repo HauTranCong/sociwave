@@ -6,6 +6,27 @@ class ConfigService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _get_config_value(self, key: str):
+        return self.db.query(ConfigModel).filter(ConfigModel.key == key).first()
+
+    def get_monitoring_enabled(self) -> bool:
+        rec = self._get_config_value('monitoringEnabled')
+        if rec is None or rec.value is None:
+            return False
+        try:
+            return str(rec.value).lower() == 'true'
+        except Exception:
+            return False
+
+    def get_monitoring_interval_seconds(self, default: int = 300) -> int:
+        rec = self._get_config_value('monitoringIntervalSeconds')
+        if rec is None or rec.value is None:
+            return default
+        try:
+            return int(str(rec.value))
+        except Exception:
+            return default
+
     def load_config(self) -> ConfigSchema:
         configs = self.db.query(ConfigModel).all()
         config_dict = {c.key: c.value for c in configs}

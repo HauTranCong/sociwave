@@ -15,7 +15,6 @@ class BackgroundMonitorService {
   final StorageService _storage;
   final ApiClient _apiClient = ApiClient();
 
-  Timer? _timer;
   bool _isRunning = false;
   Duration _interval = const Duration(minutes: 5);
 
@@ -41,14 +40,11 @@ class BackgroundMonitorService {
       _isRunning = true;
       await _storage.saveMonitoringEnabled(true);
 
-      // Run first check immediately
+      // Kick off a single monitoring cycle immediately (backend handles background work)
       await performMonitoringCycle();
 
-      // Start periodic timer
-      _timer = Timer.periodic(_interval, (_) => performMonitoringCycle());
-
       AppLogger.info(
-        'Background monitoring started (interval: ${_formatInterval(_interval)})',
+        'Background monitoring enabled (backend scheduler runs future cycles)',
       );
       return true;
     } catch (e, stackTrace) {
@@ -64,8 +60,6 @@ class BackgroundMonitorService {
       return;
     }
 
-    _timer?.cancel();
-    _timer = null;
     _isRunning = false;
 
     await _storage.saveMonitoringEnabled(false);
@@ -91,22 +85,9 @@ class BackgroundMonitorService {
     }
 
     _interval = newInterval;
-    AppLogger.info('Monitoring interval set to ${_formatInterval(_interval)}');
-
-    // If monitoring is running, restart with new interval
-    if (_isRunning) {
-      AppLogger.info('Restarting monitoring with new interval');
-
-      // Cancel existing timer
-      _timer?.cancel();
-
-      // Start new timer with updated interval
-      _timer = Timer.periodic(_interval, (_) => performMonitoringCycle());
-
-      AppLogger.info(
-        'Monitoring restarted with ${_formatInterval(_interval)} interval',
-      );
-    }
+    AppLogger.info(
+      'Monitoring interval set to ${_formatInterval(_interval)} (handled by backend scheduler)',
+    );
 
     return true;
   }

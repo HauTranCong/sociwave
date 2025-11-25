@@ -35,8 +35,24 @@ class MonitorProvider extends ChangeNotifier {
   /// Initialize monitor provider
   Future<void> init() async {
     try {
+      final monitoringService = MonitoringService();
+      // Pull current settings from backend so UI reflects server state
+      try {
+        final backendIntervalSeconds = await monitoringService.getMonitoringInterval();
+        await _monitorService.setInterval(Duration(seconds: backendIntervalSeconds));
+        AppLogger.info('🛰️ Synced monitoring interval from backend: ${_monitorService.intervalText}');
+      } catch (e) {
+        AppLogger.warning('Failed to sync interval from backend: $e');
+      }
+
       // Load monitoring state
-      final wasEnabled = _storage.loadMonitoringEnabled();
+      bool wasEnabled = _storage.loadMonitoringEnabled();
+      try {
+        // Prefer backend enabled flag if available
+        wasEnabled = await monitoringService.getMonitoringEnabled();
+      } catch (e) {
+        AppLogger.warning('Failed to sync monitoring enabled state from backend: $e');
+      }
       final lastCheckTime = _storage.loadLastMonitorCheck();
       final totalChecks = _storage.getTotalMonitorChecks();
       final totalReplies = _storage.getTotalReplies();

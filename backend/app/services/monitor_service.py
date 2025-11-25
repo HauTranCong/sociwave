@@ -1,6 +1,9 @@
 from typing import List, Dict, Set
 from app.models.models import Reel, Rule, Comment
 from app.services.facebook_service import FacebookService
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MonitorService:
     def __init__(self, facebook_service: FacebookService):
@@ -44,11 +47,15 @@ class MonitorService:
     def perform_monitoring_cycle(self, rules: Dict[str, Rule]):
         enabled_rules = {k: v for k, v in rules.items() if v.enabled}
         if not enabled_rules:
-            print("No enabled rules found, skipping cycle")
+            logger.debug("No enabled rules found, skipping cycle")
             return
 
         reels = self.facebook_service.get_reels()
+        logger.debug("Fetched %s reels to evaluate rules", len(reels))
         page_id = self.facebook_service.page_id
+        total_comments = 0
+        replies_sent = 0
+        inbox_sent = 0
 
         for reel in reels:
             rule = enabled_rules.get(reel.id)
@@ -56,6 +63,8 @@ class MonitorService:
                 continue
 
             comments = self.facebook_service.get_comments(reel.id)
+            total_comments += len(comments)
+            logger.debug("Processing %s comments for reel %s", len(comments), reel.id)
             for comment in comments:
                 # Skip comments we've already processed in previous cycles
                 if comment.id in self._replied_comment_ids:
@@ -72,16 +81,28 @@ class MonitorService:
                 if self._matches(comment.message, rule):
                     try:
                         self.facebook_service.reply_to_comment(comment.id, rule.reply_message)
-                        print(f"Auto-replied to comment {comment.id} on reel {reel.id}")
+                        replies_sent += 1
+                        logger.debug("Auto-replied to comment %s on reel %s", comment.id, reel.id)
                         # Mark this comment as replied so we don't process it again
                         self._replied_comment_ids.add(comment.id)
 
                         if rule.inbox_message:
                             try:
                                 self.facebook_service.send_private_reply(comment.id, rule.inbox_message)
-                                print(f"Sent private reply for comment {comment.id}")
+                                inbox_sent += 1
+                                logger.debug("Sent private reply for comment %s", comment.id)
                             except Exception as e:
-                                print(f"Failed to send private reply for comment {comment.id}: {e}")
+                                logger.exception("Failed to send private reply for comment %s: %s", comment.id, e)
 
                     except Exception as e:
-                        print(f"Failed to reply to comment {comment.id}: {e}")
+                        logger.exception("Failed to reply to comment %s: %s", comment.id, e)
+
+        logger.info(
+            "Monitoring cycle complete: reels=%s comments=%s replies=%s inbox=%s rules=%s enabled_rules=%s",
+            len(reels),
+            total_comments,
+            replies_sent,
+            inbox_sent,
+            len(rules),
+            len(enabled_rules),
+        )

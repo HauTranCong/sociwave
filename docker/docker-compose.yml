@@ -23,16 +23,13 @@ services:
     container_name: sociwave-backend
     restart: unless-stopped
     volumes:
-      # Mount the backend code for development, and a persistent volume for the database
+      # Mount backend code for development
       - ../backend:/app
-      - sociwave-db-data:/app/data
+      # Mount host SQLite database file so it persists and uses your local data
+      - ../backend/data/sociwave.db:/app/data/sociwave.db
     networks:
       - sociwave-network
 
 networks:
   sociwave-network:
     driver: bridge
-
-volumes:
-  sociwave-db-data:
-    driver: local

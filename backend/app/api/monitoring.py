@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, BackgroundTasks
+import logging
 from app.services.monitor_service import MonitorService
 from app.services.facebook_service import FacebookService
 from app.services.config_service import ConfigService
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 def get_db():
     db = SessionLocal()
@@ -47,15 +49,18 @@ async def trigger_monitoring(
     config_service: ConfigService = Depends(get_config_service)
 ):
     rules = config_service.load_rules()
+    logger.info(
+        "Received /trigger-monitoring; queuing background task with %s rules",
+        len(rules),
+    )
     background_tasks.add_task(monitor_service.perform_monitoring_cycle, rules)
+    logger.info("/trigger-monitoring background task queued")
     return {"message": "Monitoring cycle triggered in the background."}
 
 
 @router.get('/monitoring/enabled')
 def get_monitoring_enabled(config_service: ConfigService = Depends(get_config_service)):
-    config = config_service.load_config()
-    # Config is a Pydantic model; use dict to access a custom key
-    enabled = bool(str(config.dict().get('monitoringEnabled', 'false')).lower() == 'true')
+    enabled = config_service.get_monitoring_enabled()
     return {'enabled': enabled}
 
 
@@ -85,11 +90,7 @@ def set_monitoring_enabled(enabled: bool, config_service: ConfigService = Depend
 
 @router.get('/monitoring/interval')
 def get_monitoring_interval(config_service: ConfigService = Depends(get_config_service)):
-    config = config_service.load_config()
-    try:
-        seconds = int(str(config.dict().get('monitoringIntervalSeconds', '300')))
-    except Exception:
-        seconds = 300
+    seconds = config_service.get_monitoring_interval_seconds(300)
     return {'interval_seconds': seconds}
 
 

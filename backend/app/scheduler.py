@@ -8,13 +8,23 @@ from sqlalchemy.orm import Session
 import logging
 
 logger = logging.getLogger(__name__)
+# Ensure scheduler logs are visible even if root logger not configured
+if logger.level == logging.NOTSET:
+    logger.setLevel(logging.INFO)
 
 # Default interval in seconds (5 minutes)
 DEFAULT_INTERVAL_SECONDS = 60 * 5
 
 class MonitoringScheduler:
     def __init__(self):
-        self.scheduler = BackgroundScheduler()
+        # Allow short delays without marking runs as missed; avoid piling up missed runs.
+        self.scheduler = BackgroundScheduler(
+            job_defaults={
+                "misfire_grace_time": 30,  # seconds tolerance before treating as missed
+                "coalesce": True,          # merge runs if several were missed
+                "max_instances": 1,        # prevent overlapping runs
+            }
+        )
         self.job = None
 
     def _get_db(self) -> Session:
@@ -25,18 +35,14 @@ class MonitoringScheduler:
         db = self._get_db()
         try:
             config_service = ConfigService(db)
-            config = config_service.load_config()
             # Check if monitoring enabled in config
-            enabled = False
-            try:
-                enabled = bool(str(config.dict().get('monitoringEnabled', 'false')).lower() == 'true')
-            except Exception:
-                enabled = False
+            enabled = config_service.get_monitoring_enabled()
 
             if not enabled:
                 logger.debug('Monitoring disabled in config; skipping scheduled run')
                 return
 
+            config = config_service.load_config()
             # Build FacebookService from config and run MonitorService directly
             fb = FacebookService(
                 access_token=config.accessToken,
@@ -48,8 +54,9 @@ class MonitoringScheduler:
             )
             monitor_service = MonitorService(fb)
             rules = config_service.load_rules()
+            logger.debug('Running scheduled monitoring cycle: %s rules', len(rules))
             monitor_service.perform_monitoring_cycle(rules)
-            logger.info('Scheduled monitoring cycle completed')
+            logger.debug('Scheduled monitoring cycle completed')
         except Exception as e:
             logger.exception('Scheduled monitoring job failed: %s', e)
         finally:
@@ -61,12 +68,8 @@ class MonitoringScheduler:
             db = self._get_db()
             from app.services.config_service import ConfigService
             config_service = ConfigService(db)
-            config = config_service.load_config()
             if interval_seconds is None:
-                try:
-                    interval_seconds = int(str(config.dict().get('monitoringIntervalSeconds', DEFAULT_INTERVAL_SECONDS)))
-                except Exception:
-                    interval_seconds = DEFAULT_INTERVAL_SECONDS
+                interval_seconds = config_service.get_monitoring_interval_seconds(DEFAULT_INTERVAL_SECONDS)
         except Exception:
             interval_seconds = interval_seconds or DEFAULT_INTERVAL_SECONDS
         finally:

@@ -1,14 +1,32 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+import os
 from app.api import monitoring, rules, config, auth
 from app.scheduler import MonitoringScheduler, monitoring_scheduler as monitoring_scheduler_singleton
-import os
 from app.core.database import engine
 from app.models import models
 
 models.Base.metadata.create_all(bind=engine)
 
+# Basic logging setup so scheduler messages show up in console/uvicorn logs.
+# Adjust level via LOG_LEVEL env (e.g., INFO, WARNING, ERROR).
+log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_name, logging.INFO)
+logging.basicConfig(
+    level=log_level,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
 app = FastAPI(title="SociWave Backend")
+
+logger = logging.getLogger("sociwave.main")
+logger.setLevel(log_level)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 # Allow frontend (served on localhost:8080) to call the API from the browser.
 app.add_middleware(
@@ -29,17 +47,22 @@ app.include_router(config.router, prefix="/api", tags=["config"])
 
 # Start monitoring scheduler ONLY when explicitly enabled via env var.
 # This prevents duplicate scheduler instances when running multiple uvicorn workers.
-monitoring_scheduler = None
-if os.environ.get('RUN_SCHEDULER', '').lower() == 'true':
-    monitoring_scheduler = MonitoringScheduler()
+monitoring_scheduler = MonitoringScheduler()
+try:
+    logger.info("Starting monitoring scheduler from main.py")
     monitoring_scheduler.start()
+    logger.info("Monitoring scheduler started successfully")
+except Exception:
+    logger.exception("Failed to start monitoring scheduler")
+else:
     # expose to module-level singleton
     try:
         # assign to the module-level variable so api endpoints can access
         import app.scheduler as _sched_mod
         _sched_mod.monitoring_scheduler = monitoring_scheduler
+        logger.info("Monitoring scheduler singleton exposed to app.scheduler")
     except Exception:
-        pass
+        logger.exception("Failed to expose monitoring scheduler singleton")
 
 
 @app.get("/")

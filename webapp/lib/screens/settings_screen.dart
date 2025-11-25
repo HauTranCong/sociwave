@@ -223,7 +223,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     labelText: 'Reels Limit',
-                    hintText: 'Max reels per request (1-100)',
+                    hintText: 'Max reels per request (1-10000)',
                     prefixIcon: Icon(Icons.video_library),
                     helperText: 'Number of reels to fetch (default: 25)',
                   ),
@@ -235,8 +235,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (limit == null) {
                       return 'Please enter a valid number';
                     }
-                    if (limit < 1 || limit > 100) {
-                      return 'Limit must be between 1 and 100';
+                    if (limit < 1 || limit > 10000) {
+                      return 'Limit must be between 1 and 10000';
                     }
                     return null;
                   },
