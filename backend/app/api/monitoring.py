@@ -21,6 +21,13 @@ def get_config_service(db: Session = Depends(get_db)):
 
 def get_facebook_service(config_service: ConfigService = Depends(get_config_service)):
     config = config_service.load_config()
+    # If required config values are missing, raise a 400 so client gets a clear message
+    if not config.accessToken or not config.pageId:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Facebook configuration is incomplete. Please set accessToken and pageId via /api/config.",
+        )
     return FacebookService(
         access_token=config.accessToken,
         page_id=config.pageId,
@@ -42,6 +49,71 @@ async def trigger_monitoring(
     rules = config_service.load_rules()
     background_tasks.add_task(monitor_service.perform_monitoring_cycle, rules)
     return {"message": "Monitoring cycle triggered in the background."}
+
+
+@router.get('/monitoring/enabled')
+def get_monitoring_enabled(config_service: ConfigService = Depends(get_config_service)):
+    config = config_service.load_config()
+    # Config is a Pydantic model; use dict to access a custom key
+    enabled = bool(str(config.dict().get('monitoringEnabled', 'false')).lower() == 'true')
+    return {'enabled': enabled}
+
+
+@router.post('/monitoring/enabled')
+def set_monitoring_enabled(enabled: bool, config_service: ConfigService = Depends(get_config_service)):
+    # Persist the monitoringEnabled flag in the config table
+    config = config_service.load_config()
+    cfg_dict = config.dict()
+    cfg_dict['monitoringEnabled'] = 'true' if enabled else 'false'
+    # Reuse Config schema to save (ConfigService.save_config expects Config pydantic model)
+    # But Config Schema doesn't define monitoringEnabled; save directly into DB
+    # Use the db from ConfigService to store the key
+    # We will use save_config by building a Config object for known keys and then persisting the monitoring key manually
+    # Simpler: directly interact with DB models
+    db = config_service.db
+    from app.models.models import ConfigModel
+    db_config = db.query(ConfigModel).filter(ConfigModel.key == 'monitoringEnabled').first()
+    if db_config:
+        db_config.value = 'true' if enabled else 'false'
+    else:
+        db_config = ConfigModel(key='monitoringEnabled', value='true' if enabled else 'false')
+        db.add(db_config)
+    db.commit()
+
+    return {'enabled': enabled}
+
+
+@router.get('/monitoring/interval')
+def get_monitoring_interval(config_service: ConfigService = Depends(get_config_service)):
+    config = config_service.load_config()
+    try:
+        seconds = int(str(config.dict().get('monitoringIntervalSeconds', '300')))
+    except Exception:
+        seconds = 300
+    return {'interval_seconds': seconds}
+
+
+@router.post('/monitoring/interval')
+def set_monitoring_interval(interval_seconds: int, config_service: ConfigService = Depends(get_config_service)):
+    # Persist interval in seconds to config table
+    db = config_service.db
+    from app.models.models import ConfigModel
+    db_config = db.query(ConfigModel).filter(ConfigModel.key == 'monitoringIntervalSeconds').first()
+    if db_config:
+        db_config.value = str(int(interval_seconds))
+    else:
+        db_config = ConfigModel(key='monitoringIntervalSeconds', value=str(int(interval_seconds)))
+        db.add(db_config)
+    db.commit()
+    # If the scheduler singleton exists, reschedule job
+    try:
+        import app.scheduler as _sched_mod
+        sched = getattr(_sched_mod, 'monitoring_scheduler', None)
+        if sched is not None:
+            sched.reschedule(int(interval_seconds))
+    except Exception:
+        pass
+    return {'interval_seconds': int(interval_seconds)}
 
 @router.get("/user-info", response_model=Dict[str, Any])
 def get_user_info(facebook_service: FacebookService = Depends(get_facebook_service)):

@@ -79,5 +79,7 @@ class UserModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+    theme_mode = Column(String, default='system')
+
 
 

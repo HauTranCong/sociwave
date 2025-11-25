@@ -3,6 +3,7 @@ import '../core/utils/logger.dart';
 import '../data/services/storage_service.dart';
 import '../domain/models/monitor_status.dart';
 import '../services/background_monitor_service.dart';
+import '../data/services/monitoring_service.dart';
 
 /// Provider for monitoring service status and control
 class MonitorProvider extends ChangeNotifier {
@@ -89,6 +90,13 @@ class MonitorProvider extends ChangeNotifier {
       }
 
       await _storage.saveMonitoringEnabled(true);
+      // Also enable server-side monitoring toggle if available
+      try {
+        final monitoringService = MonitoringService();
+        await monitoringService.setMonitoringEnabled(true);
+      } catch (e) {
+        AppLogger.warning('Failed to enable server-side monitoring: $e');
+      }
       _status = _status.copyWith(isRunning: true);
 
       AppLogger.info(
@@ -115,6 +123,13 @@ class MonitorProvider extends ChangeNotifier {
       await _monitorService.stop();
 
       await _storage.saveMonitoringEnabled(false);
+      // Also disable server-side monitoring toggle if available
+      try {
+        final monitoringService = MonitoringService();
+        await monitoringService.setMonitoringEnabled(false);
+      } catch (e) {
+        AppLogger.warning('Failed to disable server-side monitoring: $e');
+      }
       _status = _status.copyWith(isRunning: false);
 
       AppLogger.info('🛑 Background monitoring stopped');

@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:provider/provider.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/utils/logger.dart';
 import 'data/services/storage_service.dart';
 import 'providers/provider_setup.dart';
+import 'providers/theme_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -34,8 +36,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ProviderSetup.create(
       storageService: storageService,
-      child: Builder(
-        builder: (context) {
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
           // Create router after providers are available
           final router = AppRouter.createRouter(context);
 
@@ -44,7 +46,7 @@ class MyApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
-            themeMode: ThemeMode.system,
+            themeMode: themeProvider.themeMode,
             routerConfig: router,
           );
         },

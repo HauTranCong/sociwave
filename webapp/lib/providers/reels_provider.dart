@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
 import '../core/utils/logger.dart';
 import '../data/services/mock_api_service.dart';
 import '../data/services/storage_service.dart';
@@ -73,7 +74,31 @@ class ReelsProvider extends ChangeNotifier {
       AppLogger.info('🎬 Loaded ${_reels.length} reels from API');
       notifyListeners();
     } catch (e, stackTrace) {
-      _setError('Failed to fetch reels: $e');
+      // Provide clearer, actionable messages for known HTTP errors
+      int? status;
+      String? message;
+
+      if (e is ApiException) {
+        status = e.statusCode;
+        message = e.message;
+      } else if (e is DioException) {
+        status = e.response?.statusCode;
+        message = e.message;
+      }
+
+      if (status == 400) {
+        // Backend returns 400 when Facebook config is incomplete
+        _setError('Cannot load reels: Facebook configuration is incomplete.\nPlease set accessToken and pageId in Settings.');
+      } else if (status == 401) {
+        _setError('Unauthorized: Please login again.');
+      } else if (status != null && status >= 500) {
+        _setError('Server error when fetching reels (status $status). Try again later.');
+      } else if (message != null) {
+        _setError('Failed to fetch reels: $message');
+      } else {
+        _setError('Failed to fetch reels: $e');
+      }
+
       AppLogger.error('🎬 Failed to load reels', e, stackTrace);
     } finally {
       _setLoading(false);

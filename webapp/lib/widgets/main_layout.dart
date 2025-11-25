@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../providers/theme_provider.dart';
 import '../core/constants/app_constants.dart';
 
 /// Main layout with left navigation bar
@@ -24,6 +25,7 @@ class _MainLayoutState extends State<MainLayout> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final authProvider = context.watch<AuthProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
     final currentLocation = GoRouterState.of(context).uri.toString();
 
     return Scaffold(
@@ -32,7 +34,23 @@ class _MainLayoutState extends State<MainLayout> {
           // Left Navigation Bar
           NavigationRail(
             extended: _isExpanded,
-            backgroundColor: theme.colorScheme.surfaceVariant,
+            backgroundColor: theme.colorScheme.surface,
+            indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
+            indicatorShape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            selectedIconTheme: IconThemeData(
+              color: theme.colorScheme.primary,
+              size: 28,
+            ),
+            unselectedIconTheme: IconThemeData(
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+            ),
+            selectedLabelTextStyle: theme.textTheme.labelLarge!.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+            ),
+            unselectedLabelTextStyle: theme.textTheme.labelLarge,
             selectedIndex: _getSelectedIndex(currentLocation),
             onDestinationSelected: (index) {
               _navigateToIndex(context, index);
@@ -109,7 +127,7 @@ class _MainLayoutState extends State<MainLayout> {
                     Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Row(
@@ -125,9 +143,9 @@ class _MainLayoutState extends State<MainLayout> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 8),
                               Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
@@ -137,17 +155,12 @@ class _MainLayoutState extends State<MainLayout> {
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  Text(
-                                    'Logged in',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
                                 ],
                               ),
                             ],
                           ),
                           const SizedBox(height: 12),
+                          // Logout Button
                           OutlinedButton.icon(
                             onPressed: () => _handleLogout(context),
                             icon: const Icon(Icons.logout, size: 18),
@@ -159,10 +172,51 @@ class _MainLayoutState extends State<MainLayout> {
                               ),
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          // Theme Toggle Buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.brightness_auto),
+                                    tooltip: 'System Theme',
+                                    color: themeProvider.themeMode ==
+                                            ThemeMode.system
+                                        ? theme.colorScheme.primary
+                                        : null,
+                                    onPressed: () => themeProvider
+                                        .setThemeMode(ThemeMode.system),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.light_mode),
+                                    tooltip: 'Light Theme',
+                                    color: themeProvider.themeMode ==
+                                            ThemeMode.light
+                                        ? theme.colorScheme.primary
+                                        : null,
+                                    onPressed: () => themeProvider
+                                        .setThemeMode(ThemeMode.light),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.dark_mode),
+                                    tooltip: 'Dark Theme',
+                                    color:
+                                        themeProvider.themeMode == ThemeMode.dark
+                                            ? theme.colorScheme.primary
+                                            : null,
+                                    onPressed: () => themeProvider
+                                        .setThemeMode(ThemeMode.dark),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
-                  const SizedBox(height: 8),
                   // Toggle Button
                   IconButton(
                     icon: Icon(
@@ -175,6 +229,7 @@ class _MainLayoutState extends State<MainLayout> {
                     },
                     tooltip: _isExpanded ? 'Collapse' : 'Expand',
                   ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -182,12 +237,12 @@ class _MainLayoutState extends State<MainLayout> {
               NavigationRailDestination(
                 icon: Icon(Icons.dashboard_outlined),
                 selectedIcon: Icon(Icons.dashboard),
-                label: Text('Dashboard'),
+                label: Text('DASHBOARD', style: TextStyle(fontSize: 14)),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.settings_outlined),
                 selectedIcon: Icon(Icons.settings),
-                label: Text('Settings'),
+                label: Text('SETTINGS', style: TextStyle(fontSize: 14)),
               ),
             ],
           ),

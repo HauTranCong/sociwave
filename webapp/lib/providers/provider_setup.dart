@@ -7,11 +7,12 @@ import './reels_provider.dart';
 import './rules_provider.dart';
 import './comments_provider.dart';
 import './monitor_provider.dart';
+import './theme_provider.dart';
 
 /// Sets up all providers for the application
 class ProviderSetup {
   /// Creates a MultiProvider with all application providers
-  /// 
+  ///
   /// Note: storageService must be initialized using StorageService.init()
   static Widget create({
     required Widget child,
@@ -21,32 +22,37 @@ class ProviderSetup {
       providers: [
         // Storage Service (for DI)
         Provider<StorageService>.value(value: storageService),
-        
+
+        // Theme Provider
+        ChangeNotifierProvider<ThemeProvider>(
+          create: (_) => ThemeProvider(),
+        ),
+
         // Auth Provider
         ChangeNotifierProvider<AuthProvider>(
           create: (_) => AuthProvider(storageService)..init(),
         ),
-        
+
         // Config Provider
         ChangeNotifierProvider<ConfigProvider>(
           create: (_) => ConfigProvider(storageService)..init(),
         ),
-        
+
         // Rules Provider
         ChangeNotifierProvider<RulesProvider>(
           create: (_) => RulesProvider(storageService)..init(),
         ),
-        
+
         // Reels Provider
         ChangeNotifierProvider<ReelsProvider>(
           create: (_) => ReelsProvider(storageService),
         ),
-        
+
         // Comments Provider
         ChangeNotifierProvider<CommentsProvider>(
           create: (_) => CommentsProvider(),
         ),
-        
+
         // Monitor Provider
         ChangeNotifierProvider<MonitorProvider>(
           create: (_) => MonitorProvider(storageService)..init(),

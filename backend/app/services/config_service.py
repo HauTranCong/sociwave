@@ -10,10 +10,28 @@ class ConfigService:
         configs = self.db.query(ConfigModel).all()
         config_dict = {c.key: c.value for c in configs}
         # Convert string values from DB to correct types for Pydantic model
+        # ensure boolean
         config_dict['useMockData'] = config_dict.get('useMockData', 'false').lower() == 'true'
+        # ensure ints
         for key in ['reelsLimit', 'commentsLimit', 'repliesLimit']:
             if key in config_dict:
-                config_dict[key] = int(config_dict[key])
+                try:
+                    config_dict[key] = int(config_dict[key])
+                except (TypeError, ValueError):
+                    # fallback to defaults handled by Pydantic model
+                    config_dict.pop(key, None)
+
+        # provide required fields defaults if missing in DB
+        # accessToken and pageId are required by the Pydantic Config schema
+        # if they are missing in DB, set them to empty strings so validation will pass
+        # (the application can still treat empty strings as not-configured)
+        if 'accessToken' not in config_dict:
+            config_dict['accessToken'] = ''
+        if 'pageId' not in config_dict:
+            config_dict['pageId'] = ''
+        if 'version' not in config_dict:
+            config_dict['version'] = 'v20.0'
+
         return ConfigSchema(**config_dict)
 
     def save_config(self, config: ConfigSchema):

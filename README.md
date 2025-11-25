@@ -99,7 +99,7 @@ If you prefer to run the frontend and backend separately without Docker:
     cd backend
     python -m venv .venv
     # Activate the virtual environment (Windows)
-    .venv\Scripts\activate
+    .venv\Scripts\activate.bat
     # Or on macOS/Linux
     # source .venv/bin/activate
     pip install -r requirements.txt

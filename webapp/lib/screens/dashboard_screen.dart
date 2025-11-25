@@ -5,7 +5,9 @@ import '../providers/config_provider.dart';
 import '../providers/reels_provider.dart';
 import '../providers/rules_provider.dart';
 import '../providers/comments_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/monitor_provider.dart';
+import '../data/services/monitoring_service.dart';
 import '../router/app_router.dart';
 import '../widgets/reel_card.dart';
 import '../widgets/loading_indicator.dart';
@@ -33,6 +35,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadData() async {
     if (!mounted) return;
+
+    // Wait for AuthProvider to finish initialization and provide a token
+    final authProvider = context.read<AuthProvider>();
+    final timeout = DateTime.now().add(const Duration(seconds: 10));
+    while (authProvider.isInitializing && DateTime.now().isBefore(timeout)) {
+      // small delay while waiting for AuthProvider to load stored auth
+      await Future.delayed(const Duration(milliseconds: 150));
+    }
+
+    // If not authenticated after waiting, abort loading to avoid unauthenticated requests
+    if (!authProvider.isAuthenticated) {
+      // Auth not ready — skip loading data for now. Dashboard will update once user logs in.
+      return;
+    }
 
     final configProvider = context.read<ConfigProvider>();
     final reelsProvider = context.read<ReelsProvider>();
@@ -306,12 +322,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildStatisticsSection() {
-    return Consumer2<RulesProvider, MonitorProvider>(
-      builder: (context, rulesProvider, monitorProvider, child) {
+    return Consumer3<RulesProvider, ReelsProvider, ConfigProvider>(
+      builder: (context, rulesProvider, reelsProvider, configProvider, child) {
+        final pageId = configProvider.config.pageId;
+
         return Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: () => context.go(AppRouter.settings),
+                  child: StatCard(
+                    icon: Icons.person,
+                    title: 'Page Profile',
+                    value: pageId.isNotEmpty ? pageId : 'Not set',
+                    subtitle: 'Manage pages & profiles',
+                    color: Colors.orange,
+                  ),
+                ),
+              ),
               Expanded(
                 child: StatCard(
                   icon: Icons.rule,
@@ -324,21 +355,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: StatCard(
-                  icon: Icons.check_circle,
-                  title: 'Total Checks',
-                  value: '${monitorProvider.totalChecks}',
-                  subtitle: 'monitoring cycles',
+                  icon: Icons.video_library,
+                  title: 'Reels Loaded',
+                  value: '${reelsProvider.reels.length}',
+                  subtitle: 'from Facebook / cache',
                   color: Colors.green,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: StatCard(
-                  icon: Icons.reply,
-                  title: 'Auto Replies',
-                  value: '${monitorProvider.totalReplies}',
-                  subtitle: 'sent',
-                  color: Colors.orange,
                 ),
               ),
             ],
@@ -565,32 +586,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+              ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
                 final minutes = int.parse(controller.text);
-                final success = await provider.setIntervalMinutes(minutes);
+                final seconds = minutes * 60;
+
+                // Call backend to set monitoring interval
+                bool backendOk = false;
+                try {
+                  final monitoringService = MonitoringService();
+                  final updated = await monitoringService.setMonitoringInterval(seconds);
+                  backendOk = updated != null;
+                } catch (e) {
+                  backendOk = false;
+                }
 
                 if (!mounted) return;
 
                 Navigator.pop(context);
 
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Interval updated to ${provider.intervalText}',
+                if (backendOk) {
+                  // Update local provider interval as well
+                  final success = await provider.setIntervalMinutes(minutes);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          success
+                              ? 'Interval updated to ${provider.intervalText}'
+                              : 'Backend updated — local update failed',
+                        ),
+                        backgroundColor: success ? Colors.green : Colors.orange,
                       ),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                    );
+                  }
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Failed to update interval'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Failed to update interval on server'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
               }
             },

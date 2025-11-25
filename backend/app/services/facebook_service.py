@@ -1,5 +1,7 @@
 import requests
 from typing import List, Dict, Any
+from fastapi import HTTPException, status
+import logging
 from app.models.models import Reel, Comment
 
 
@@ -20,8 +22,14 @@ class FacebookService:
         comments_limit: int = 100,
         replies_limit: int = 100,
     ):
-        self.access_token = access_token
-        self.page_id = page_id
+        # Validate minimal configuration to avoid passing empty values to Graph API
+        if not access_token:
+            logging.warning("FacebookService initialized without access_token")
+        if not page_id:
+            logging.warning("FacebookService initialized without page_id")
+
+        self.access_token = access_token or ""
+        self.page_id = page_id or ""
         self.version = version
         self.base_url = f"https://graph.facebook.com/{self.version}"
         self.reels_limit = reels_limit
@@ -48,9 +56,21 @@ class FacebookService:
         params = self._build_params(
             {"fields": "id,name,picture"},
         )
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except requests.HTTPError as e:
+            # Translate HTTP errors into FastAPI HTTPException with details
+            status_code = e.response.status_code if e.response is not None else 502
+            try:
+                body = e.response.json()
+            except Exception:
+                body = {"raw": e.response.text if e.response is not None else str(e)}
+            raise HTTPException(status_code=status_code, detail={"facebook_error": body})
+        except Exception as e:
+            # Network or other unexpected error
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
     def get_reels(self) -> List[Reel]:
         url = f"{self.base_url}/{self.page_id}/video_reels"
@@ -60,10 +80,15 @@ class FacebookService:
                 "limit": self.reels_limit,
             }
         )
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        return [Reel.parse_obj(item) for item in data.get("data", [])]
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            return [Reel.parse_obj(item) for item in data.get("data", [])]
+        except requests.HTTPError as e:
+            raise HTTPException(status_code=e.response.status_code if e.response is not None else 502, detail="Failed to fetch reels from Facebook")
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
     def get_posts(self) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/{self.page_id}/posts"
@@ -73,10 +98,15 @@ class FacebookService:
                 "limit": 25,
             }
         )
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        return data.get("data", [])
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("data", [])
+        except requests.HTTPError as e:
+            raise HTTPException(status_code=e.response.status_code if e.response is not None else 502, detail="Failed to fetch posts from Facebook")
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
     def get_comments(self, reel_id: str) -> List[Comment]:
         url = f"{self.base_url}/{reel_id}/comments"
@@ -86,10 +116,15 @@ class FacebookService:
                 "limit": self.comments_limit,
             }
         )
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        return [Comment.parse_obj(item) for item in data.get("data", [])]
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            return [Comment.parse_obj(item) for item in data.get("data", [])]
+        except requests.HTTPError as e:
+            raise HTTPException(status_code=e.response.status_code if e.response is not None else 502, detail="Failed to fetch comments from Facebook")
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
     def has_replied_to_comment(self, comment_id: str) -> bool:
         """
@@ -103,22 +138,33 @@ class FacebookService:
                 "limit": 100,
             }
         )
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
 
-        for reply in data.get("data", []):
-            from_data = reply.get("from") or {}
-            if from_data.get("id") == self.page_id:
-                return True
-        return False
+            for reply in data.get("data", []):
+                from_data = reply.get("from") or {}
+                if from_data.get("id") == self.page_id:
+                    return True
+            return False
+        except requests.HTTPError as e:
+            # On error, assume not replied and allow caller to continue
+            return False
+        except Exception:
+            return False
 
     def reply_to_comment(self, comment_id: str, message: str) -> Dict[str, Any]:
         url = f"{self.base_url}/{comment_id}/comments"
         params = self._build_params({"message": message})
-        response = requests.post(url, params=params)
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = requests.post(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except requests.HTTPError as e:
+            raise HTTPException(status_code=e.response.status_code if e.response is not None else 502, detail="Failed to post reply to Facebook")
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
     def send_private_reply(self, comment_id: str, message: str) -> Dict[str, Any]:
         """
@@ -132,9 +178,10 @@ class FacebookService:
             "message": {"text": message},
         }
         headers = {"Content-Type": "application/json"}
-        response = requests.post(url, params=params, json=payload, headers=headers)
         try:
+            response = requests.post(url, params=params, json=payload, headers=headers)
             response.raise_for_status()
+            return response.json()
         except requests.HTTPError:
             # Log full error body to help diagnose Graph API issues
             try:
@@ -142,7 +189,7 @@ class FacebookService:
             except Exception:
                 error_body = {"raw": response.text}
 
-            print("Facebook private reply error:", error_body)
+            logging.error("Facebook private reply error: %s", error_body)
 
             # If Facebook reports that the activity is already replied to,
             # treat it as a non-fatal "duplicate" and do not raise.
@@ -154,10 +201,10 @@ class FacebookService:
             except Exception:
                 pass
 
-            # For all other errors, propagate the exception
-            raise
-
-        return response.json()
+            raise HTTPException(status_code=502, detail={"facebook_error": error_body})
+        except Exception as e:
+            logging.exception("Unexpected error in send_private_reply")
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
     def test_connection(self) -> bool:
         try:

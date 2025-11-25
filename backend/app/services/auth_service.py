@@ -43,3 +43,6 @@ class AuthService:
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return encoded_jwt
+
+    def get_user(self, username: str) -> Optional[UserModel]:
+        return self.db.query(UserModel).filter(UserModel.username == username).first()
