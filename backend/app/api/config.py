@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Depends
+from fastapi import APIRouter, Depends
 from app.services.config_service import ConfigService
 from app.models.models import Config as ConfigSchema
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
+from app.api.auth import get_current_user
 
 router = APIRouter()
 
@@ -21,6 +22,10 @@ def get_config(config_service: ConfigService = Depends(get_config_service)):
     return config_service.load_config()
 
 @router.post("/config")
-def save_config(config: ConfigSchema, config_service: ConfigService = Depends(get_config_service)):
+def save_config(
+    config: ConfigSchema,
+    config_service: ConfigService = Depends(get_config_service),
+    _current_user=Depends(get_current_user),
+):
     config_service.save_config(config)
     return {"message": "Configuration saved successfully."}

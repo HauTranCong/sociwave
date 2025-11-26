@@ -3,10 +3,12 @@ import '../../domain/models/config.dart';
 import '../../domain/models/rule.dart';
 import '../../domain/models/comment.dart';
 import '../../domain/models/reel.dart';
+// logger intentionally not imported here to avoid logging tokens
 
 /// Client for talking to the SociWave FastAPI backend.
 class ApiClient {
   final Dio _dio;
+  void Function()? _onUnauthorized;
 
   // Base URL for the FastAPI backend.
   // For local development with docker-compose, the backend is exposed on 8000.
@@ -24,7 +26,45 @@ class ApiClient {
     if (authToken != null && authToken.isNotEmpty) {
       _dio.options.headers['Authorization'] = 'Bearer $authToken';
     }
+
+      // Diagnostic interceptor: log outgoing requests and Authorization header
+      _dio.interceptors.add(InterceptorsWrapper(
+        onRequest: (options, handler) {
+          // Debug: log whether Authorization header is present (do NOT log token value)
+          final hasAuth = options.headers.containsKey('Authorization');
+          // Using print here to keep this diagnostic lightweight during local dev
+          print('[ApiClient] ${options.method.toUpperCase()} ${options.path} authHeaderPresent=$hasAuth');
+          return handler.next(options);
+        },
+        onError: (e, handler) {
+          // If 401, call onUnauthorized handler if set
+          final status = e.response?.statusCode;
+          if (status == 401) {
+            try {
+              _onUnauthorized?.call();
+            } catch (_) {}
+          }
+          return handler.next(e);
+        },
+      ));
   }
+
+    /// Update Authorization header on the existing Dio instance.
+    void setAuthToken(String? authToken) {
+      if (authToken != null && authToken.isNotEmpty) {
+        _dio.options.headers['Authorization'] = 'Bearer $authToken';
+      } else {
+        _dio.options.headers.remove('Authorization');
+      }
+    }
+
+    /// Register a callback to be invoked when a 401 Unauthorized is observed
+    void setOnUnauthorized(void Function()? handler) {
+      _onUnauthorized = handler;
+    }
+
+  /// Diagnostic: return current Authorization header value (if any)
+  String? getAuthHeader() => _dio.options.headers['Authorization'] as String?;
 
   /// Authenticate against the backend and return the access token.
   Future<String> login(String username, String password) async {

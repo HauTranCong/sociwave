@@ -22,7 +22,7 @@ class MonitoringScheduler:
             job_defaults={
                 "misfire_grace_time": 30,  # seconds tolerance before treating as missed
                 "coalesce": True,          # merge runs if several were missed
-                "max_instances": 1,        # prevent overlapping runs
+                "max_instances": 5,        # prevent overlapping runs
             }
         )
         self.job = None
@@ -68,6 +68,10 @@ class MonitoringScheduler:
             db = self._get_db()
             from app.services.config_service import ConfigService
             config_service = ConfigService(db)
+            monitoringEnabled = config_service.get_monitoring_enabled()
+            if not monitoringEnabled:
+                logger.info('Monitoring disabled in config; not starting scheduler job')
+                return
             if interval_seconds is None:
                 interval_seconds = config_service.get_monitoring_interval_seconds(DEFAULT_INTERVAL_SECONDS)
         except Exception:

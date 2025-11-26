@@ -1,7 +1,9 @@
 import '../services/api_client.dart';
 
 class MonitoringService {
-  final ApiClient _client = ApiClient();
+  final ApiClient _client;
+
+  MonitoringService(this._client);
 
   Future<bool> getMonitoringEnabled() async {
     return await _client.getMonitoringEnabled();

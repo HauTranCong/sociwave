@@ -2,10 +2,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sociwave/data/services/storage_service.dart';
 import 'package:sociwave/domain/models/rule.dart';
 import 'package:sociwave/providers/rules_provider.dart';
+import 'package:sociwave/data/services/api_client.dart';
+import 'package:sociwave/providers/api_client_provider.dart';
 
 void main() {
   late StorageService storage;
   late RulesProvider provider;
+// Minimal stub ApiClientProvider for tests (simple subclass)
+class _StubApiClientProvider extends ApiClientProvider {
+  _StubApiClientProvider() {
+    // ensure client exists
+    setAuthToken('');
+  }
+}
 
   setUpAll(() {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -13,7 +22,7 @@ void main() {
 
   setUp(() async {
     storage = await StorageService.init();
-    provider = RulesProvider(storage);
+  provider = RulesProvider(storage, _StubApiClientProvider());
   });
 
   group('RulesProvider Tests', () {

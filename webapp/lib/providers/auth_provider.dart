@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import '../data/services/api_client.dart';
 import '../data/services/storage_service.dart';
+import 'api_client_provider.dart';
 import '../core/utils/logger.dart';
 
 /// Provider for managing authentication state
 class AuthProvider with ChangeNotifier {
   final StorageService _storage;
+  final ApiClientProvider? _apiClientProvider;
 
   bool _isAuthenticated = false;
   String? _username;
@@ -13,7 +15,7 @@ class AuthProvider with ChangeNotifier {
   bool _isInitializing = true;
   String? _token;
 
-  AuthProvider(this._storage);
+  AuthProvider(this._storage, [this._apiClientProvider]);
 
   bool get isAuthenticated => _isAuthenticated;
   String? get username => _username;
@@ -30,6 +32,15 @@ class AuthProvider with ChangeNotifier {
         _username = authData['username'] as String?;
         _token = authData['token'] as String?;
         AppLogger.info('User authenticated: $_username');
+        // Ensure shared ApiClient has the token
+        try {
+          _apiClientProvider?.setAuthToken(_token);
+          // Register onUnauthorized handler so 401 forces logout
+          _apiClientProvider?.setOnUnauthorized(() {
+            AppLogger.info('AuthProvider: onUnauthorized triggered - logging out');
+            logout();
+          });
+        } catch (_) {}
       }
     } catch (e) {
       AppLogger.error('Failed to load auth state: $e');
@@ -69,6 +80,16 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
 
       AppLogger.info('User logged in: $username');
+      // Update shared ApiClient with new token
+      try {
+        _apiClientProvider?.setAuthToken(_token);
+        // Register onUnauthorized handler
+        _apiClientProvider?.setOnUnauthorized(() {
+          AppLogger.info('AuthProvider: onUnauthorized triggered - logging out');
+          logout();
+        });
+        // AppLogger.info('AuthProvider: propagated token to ApiClientProvider (header=${_apiClientProvider?.client.getAuthHeader() ?? '<none>'})');
+      } catch (_) {}
       return true;
     } catch (e) {
       AppLogger.error('Login failed: $e');
@@ -88,6 +109,10 @@ class AuthProvider with ChangeNotifier {
       _isAuthenticated = false;
       _username = null;
       _token = null;
+      // Clear token on shared ApiClient
+      try {
+        _apiClientProvider?.setAuthToken(null);
+      } catch (_) {}
 
       AppLogger.info('User logged out');
     } catch (e) {

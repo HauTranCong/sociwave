@@ -59,7 +59,11 @@ class MonitorService:
 
         for reel in reels:
             rule = enabled_rules.get(reel.id)
-            if not rule:
+            # Log whether this reel has an associated enabled rule
+            if rule:
+                logger.debug("Reel %s matched rule (enabled=%s)", reel.id, getattr(rule, 'enabled', None))
+            else:
+                logger.debug("Reel %s has no enabled rule configured; skipping", reel.id)
                 continue
 
             comments = self.facebook_service.get_comments(reel.id)
@@ -68,21 +72,34 @@ class MonitorService:
             for comment in comments:
                 # Skip comments we've already processed in previous cycles
                 if comment.id in self._replied_comment_ids:
+                    logger.debug("Skipping comment %s on reel %s: already processed in this process", comment.id, reel.id)
                     continue
                 # Skip comments authored by the page itself
                 if self._is_page_comment(comment, page_id):
+                    logger.debug("Skipping comment %s on reel %s: authored by page", comment.id, reel.id)
                     continue
 
                 if self._has_page_replied(comment, page_id):
                     # Remember that this comment thread already has a page reply
+                    logger.debug("Skipping comment %s on reel %s: page already replied in thread", comment.id, reel.id)
                     self._replied_comment_ids.add(comment.id)
                     continue
 
-                if self._matches(comment.message, rule):
+                # Check and log match attempts
+                matched = False
+                try:
+                    matched = self._matches(comment.message, rule)
+                except Exception:
+                    logger.exception("Error while evaluating rule match for comment %s on reel %s", comment.id, reel.id)
+
+                if not matched:
+                    logger.debug("Comment %s on reel %s did not match rule keywords", comment.id, reel.id)
+                if matched:
                     try:
-                        self.facebook_service.reply_to_comment(comment.id, rule.reply_message)
+                        logger.debug("Rule matched comment %s on reel %s; attempting to reply", comment.id, reel.id)
+                        resp = self.facebook_service.reply_to_comment(comment.id, rule.reply_message)
                         replies_sent += 1
-                        logger.debug("Auto-replied to comment %s on reel %s", comment.id, reel.id)
+                        logger.debug("Auto-replied to comment %s on reel %s; fb_response=%s", comment.id, reel.id, resp if resp is not None else {})
                         # Mark this comment as replied so we don't process it again
                         self._replied_comment_ids.add(comment.id)
 

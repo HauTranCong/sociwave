@@ -2,6 +2,7 @@ import 'dart:async';
 import '../core/utils/logger.dart';
 import '../data/services/api_client.dart';
 import '../data/services/storage_service.dart';
+import '../providers/api_client_provider.dart';
 
 /// Background service for monitoring comments and auto-replying
 ///
@@ -13,7 +14,8 @@ import '../data/services/storage_service.dart';
 /// 5. Tracks replied comments to avoid duplicates
 class BackgroundMonitorService {
   final StorageService _storage;
-  final ApiClient _apiClient = ApiClient();
+  final ApiClient? _apiClient;
+  final ApiClientProvider? _apiClient_provider;
 
   bool _isRunning = false;
   Duration _interval = const Duration(minutes: 5);
@@ -24,7 +26,7 @@ class BackgroundMonitorService {
   // Callback to notify when an error occurs
   Function(String)? onError;
 
-  BackgroundMonitorService(this._storage);
+  BackgroundMonitorService(this._storage, [this._apiClient_provider, ApiClient? apiClient]) : _apiClient = apiClient;
 
   /// Start monitoring with specified interval
   Future<bool> start({Duration interval = const Duration(minutes: 5)}) async {
@@ -110,8 +112,17 @@ class BackgroundMonitorService {
     try {
       AppLogger.info('Starting monitoring cycle');
       final startTime = DateTime.now();
-      // Delegate monitoring logic to backend service
-      await _apiClient.triggerMonitoring();
+      // Delegate monitoring logic to backend service using latest client from provider
+      if (_apiClient_provider != null) {
+        // AppLogger.info('Background triggerMonitoring Authorization: ${_apiClient_provider.client.getAuthHeader() ?? '<none>'}');
+        await _apiClient_provider.client.triggerMonitoring();
+      } else if (_apiClient != null) {
+        // AppLogger.info('Background triggerMonitoring Authorization: ${_apiClient.getAuthHeader() ?? '<none>'}');
+        await _apiClient.triggerMonitoring();
+      } else {
+        // Fallback to a fresh client without token (this will likely 401)
+        await ApiClient().triggerMonitoring();
+      }
 
       // Record statistics
       await _recordMonitoringCheck();

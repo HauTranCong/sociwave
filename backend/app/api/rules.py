@@ -4,6 +4,7 @@ from app.models.models import Rule as RuleSchema
 from app.services.config_service import ConfigService
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
+from app.api.auth import get_current_user
 
 router = APIRouter()
 
@@ -23,6 +24,6 @@ def get_rules(config_service: ConfigService = Depends(get_config_service)):
     return list(rules_dict.values())
 
 @router.post("/rules")
-def save_rules(rules: Dict[str, RuleSchema], config_service: ConfigService = Depends(get_config_service)):
+def save_rules(rules: Dict[str, RuleSchema], config_service: ConfigService = Depends(get_config_service), _current_user=Depends(get_current_user)):
     config_service.save_rules(rules)
     return {"message": "Rules saved successfully."}

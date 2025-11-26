@@ -1,6 +1,7 @@
 import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
 import '../data/services/storage_service.dart';
+import 'api_client_provider.dart';
 import './auth_provider.dart';
 import './config_provider.dart';
 import './reels_provider.dart';
@@ -28,9 +29,14 @@ class ProviderSetup {
           create: (_) => ThemeProvider(),
         ),
 
-        // Auth Provider
+        // Shared ApiClient provider
+        ChangeNotifierProvider<ApiClientProvider>(
+          create: (_) => ApiClientProvider(),
+        ),
+
+        // Auth Provider (injected with ApiClientProvider so token can be set)
         ChangeNotifierProvider<AuthProvider>(
-          create: (_) => AuthProvider(storageService)..init(),
+          create: (context) => AuthProvider(storageService, context.read<ApiClientProvider>())..init(),
         ),
 
         // Config Provider
@@ -38,9 +44,9 @@ class ProviderSetup {
           create: (_) => ConfigProvider(storageService)..init(),
         ),
 
-        // Rules Provider
+        // Rules Provider (use shared ApiClientProvider)
         ChangeNotifierProvider<RulesProvider>(
-          create: (_) => RulesProvider(storageService)..init(),
+          create: (context) => RulesProvider(storageService, context.read<ApiClientProvider>())..init(),
         ),
 
         // Reels Provider
@@ -53,9 +59,12 @@ class ProviderSetup {
           create: (_) => CommentsProvider(),
         ),
 
-        // Monitor Provider
+        // Monitor Provider (inject shared ApiClient)
         ChangeNotifierProvider<MonitorProvider>(
-          create: (_) => MonitorProvider(storageService)..init(),
+          create: (context) {
+            final apiClientProvider = context.read<ApiClientProvider>();
+            return MonitorProvider(storageService, apiClientProvider)..init();
+          },
         ),
       ],
       child: child,
@@ -78,7 +87,7 @@ class ProviderSetup {
         
         // Rules Provider
         ChangeNotifierProvider<RulesProvider>(
-          create: (_) => RulesProvider(storageService)..init(),
+          create: (context) => RulesProvider(storageService, context.read<ApiClientProvider>())..init(),
         ),
         
         // Reels Provider with config
@@ -99,9 +108,12 @@ class ProviderSetup {
           },
         ),
         
-        // Monitor Provider
+        // Monitor Provider (inject shared ApiClient)
         ChangeNotifierProvider<MonitorProvider>(
-          create: (_) => MonitorProvider(storageService)..init(),
+          create: (context) {
+            final apiClientProvider = context.read<ApiClientProvider>();
+            return MonitorProvider(storageService, apiClientProvider)..init();
+          },
         ),
       ],
       child: child,

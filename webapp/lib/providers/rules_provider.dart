@@ -2,18 +2,20 @@ import 'package:flutter/foundation.dart';
 import '../core/utils/logger.dart';
 import '../data/services/storage_service.dart';
 import '../data/services/api_client.dart';
+import 'api_client_provider.dart';
 import '../domain/models/rule.dart';
 
 /// Provider for managing auto-reply rules
 class RulesProvider extends ChangeNotifier {
   final StorageService _storage;
-  final ApiClient _apiClient = ApiClient();
+  final ApiClientProvider _apiClientProvider;
+  ApiClient get _apiClient => _apiClientProvider.client;
 
   Map<String, Rule> _rules = {};
   bool _isLoading = false;
   String? _error;
 
-  RulesProvider(this._storage);
+  RulesProvider(this._storage, this._apiClientProvider);
 
   // Getters
   Map<String, Rule> get rules => _rules;

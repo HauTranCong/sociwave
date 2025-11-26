@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 from app.models.models import Reel, Comment
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
+from app.api.auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -46,7 +47,8 @@ def get_monitor_service(facebook_service: FacebookService = Depends(get_facebook
 async def trigger_monitoring(
     background_tasks: BackgroundTasks,
     monitor_service: MonitorService = Depends(get_monitor_service),
-    config_service: ConfigService = Depends(get_config_service)
+    config_service: ConfigService = Depends(get_config_service),
+    _current_user=Depends(get_current_user),
 ):
     rules = config_service.load_rules()
     logger.info(
@@ -65,7 +67,7 @@ def get_monitoring_enabled(config_service: ConfigService = Depends(get_config_se
 
 
 @router.post('/monitoring/enabled')
-def set_monitoring_enabled(enabled: bool, config_service: ConfigService = Depends(get_config_service)):
+def set_monitoring_enabled(enabled: bool, config_service: ConfigService = Depends(get_config_service), _current_user=Depends(get_current_user)):
     # Persist the monitoringEnabled flag in the config table
     config = config_service.load_config()
     cfg_dict = config.dict()
@@ -95,7 +97,7 @@ def get_monitoring_interval(config_service: ConfigService = Depends(get_config_s
 
 
 @router.post('/monitoring/interval')
-def set_monitoring_interval(interval_seconds: int, config_service: ConfigService = Depends(get_config_service)):
+def set_monitoring_interval(interval_seconds: int, config_service: ConfigService = Depends(get_config_service), _current_user=Depends(get_current_user)):
     # Persist interval in seconds to config table
     db = config_service.db
     from app.models.models import ConfigModel
@@ -116,6 +118,46 @@ def set_monitoring_interval(interval_seconds: int, config_service: ConfigService
         pass
     return {'interval_seconds': int(interval_seconds)}
 
+
+@router.get('/monitoring/status')
+def monitoring_status(config_service: ConfigService = Depends(get_config_service), _current_user=Depends(get_current_user)):
+    """Return runtime monitoring status for debugging/admins."""
+    enabled = config_service.get_monitoring_enabled()
+    interval = config_service.get_monitoring_interval_seconds(300)
+
+    status = {
+        'monitoring_enabled': enabled,
+        'configured_interval_seconds': interval,
+        'scheduler_running': False,
+        'last_run_utc': None,
+        'job_id': None,
+    }
+
+    try:
+        import app.scheduler as _sched_mod
+        sched = getattr(_sched_mod, 'monitoring_scheduler', None)
+        if sched is not None:
+            status['scheduler_running'] = True
+            try:
+                job = getattr(sched, 'job', None)
+                if job is not None:
+                    status['job_id'] = getattr(job, 'id', None)
+            except Exception:
+                pass
+
+            # last_run may be a datetime attribute if scheduler implementation sets it
+            last_run = getattr(sched, 'last_run', None)
+            if last_run is not None:
+                try:
+                    status['last_run_utc'] = last_run.isoformat()
+                except Exception:
+                    status['last_run_utc'] = str(last_run)
+    except Exception:
+        # swallow import/runtime errors
+        pass
+
+    return status
+
 @router.get("/user-info", response_model=Dict[str, Any])
 def get_user_info(facebook_service: FacebookService = Depends(get_facebook_service)):
     return facebook_service.get_user_info()
@@ -133,11 +175,11 @@ def get_comments(reel_id: str, facebook_service: FacebookService = Depends(get_f
     return facebook_service.get_comments(reel_id)
 
 @router.post("/reply")
-def reply_to_comment(comment_id: str, message: str, facebook_service: FacebookService = Depends(get_facebook_service)):
+def reply_to_comment(comment_id: str, message: str, facebook_service: FacebookService = Depends(get_facebook_service), _current_user=Depends(get_current_user)):
     return facebook_service.reply_to_comment(comment_id, message)
 
 @router.post("/send-private-reply")
-def send_private_reply(comment_id: str, message: str, facebook_service: FacebookService = Depends(get_facebook_service)):
+def send_private_reply(comment_id: str, message: str, facebook_service: FacebookService = Depends(get_facebook_service), _current_user=Depends(get_current_user)):
     return facebook_service.send_private_reply(comment_id, message)
 
 @router.get("/test-connection", response_model=bool)

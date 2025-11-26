@@ -8,6 +8,7 @@ import '../providers/comments_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/monitor_provider.dart';
 import '../data/services/monitoring_service.dart';
+import '../providers/api_client_provider.dart';
 import '../router/app_router.dart';
 import '../widgets/reel_card.dart';
 import '../widgets/loading_indicator.dart';
@@ -458,15 +459,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ],
                 ),
-                if (provider.lastCheck != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Last checked: ${_formatTimestamp(provider.lastCheck!)}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
-                  ),
-                ],
               ],
             ),
           ),
@@ -502,7 +494,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       statusText = 'Starting monitoring...';
       statusColor = Colors.blue[700]!;
     } else {
-      statusText = 'Monitoring active - Next check in ${provider.intervalText}';
+      statusText = 'Monitoring activated';
       statusColor = Colors.green[700]!;
     }
 
@@ -595,7 +587,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // Call backend to set monitoring interval
                 bool backendOk = false;
                 try {
-                  final monitoringService = MonitoringService();
+                  final apiClient = context.read<ApiClientProvider>().client;
+                  final monitoringService = MonitoringService(apiClient);
                   final updated = await monitoringService.setMonitoringInterval(seconds);
                   backendOk = updated != null;
                 } catch (e) {

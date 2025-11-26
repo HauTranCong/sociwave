@@ -182,20 +182,27 @@ class FacebookService:
             response = requests.post(url, params=params, json=payload, headers=headers)
             response.raise_for_status()
             return response.json()
-        except requests.HTTPError:
+        except requests.HTTPError as e:
             # Log full error body to help diagnose Graph API issues
+            error_body = None
             try:
-                error_body = response.json()
+                if e.response is not None:
+                    error_body = e.response.json()
+                else:
+                    error_body = {"raw": str(e)}
             except Exception:
-                error_body = {"raw": response.text}
+                try:
+                    error_body = {"raw": e.response.text if e.response is not None else str(e)}
+                except Exception:
+                    error_body = {"raw": str(e)}
 
             logging.error("Facebook private reply error: %s", error_body)
 
             # If Facebook reports that the activity is already replied to,
             # treat it as a non-fatal "duplicate" and do not raise.
             try:
-                error_info = error_body.get("error") or {}
-                if error_info.get("code") == 10900:
+                error_info = error_body.get("error") if isinstance(error_body, dict) else {}
+                if error_info and error_info.get("code") == 10900:
                     # (#10900) Activity already replied to
                     return {}
             except Exception:

@@ -20,11 +20,13 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   bool _isExpanded = false;
+  // removed session-expired modal behavior
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final authProvider = context.watch<AuthProvider>();
+    // No modal shown here; session-expired UI handled elsewhere or by route changes
     final themeProvider = context.watch<ThemeProvider>();
     final currentLocation = GoRouterState.of(context).uri.toString();
 
