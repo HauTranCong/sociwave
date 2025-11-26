@@ -3,8 +3,10 @@
 # Exclude unnecessary files from Docker build
 # ===================================
 
-# Flutter build artifacts
-webapp/build/
+# Flutter build artifacts (allow web build output if already generated)
+webapp/build/*
+!webapp/build/web/
+!webapp/build/web/**
 webapp/.dart_tool/
 webapp/.flutter-plugins
 webapp/.flutter-plugins-dependencies

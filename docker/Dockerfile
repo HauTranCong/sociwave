@@ -22,8 +22,13 @@ RUN flutter pub get
 COPY webapp/ .
 
 # Build the optimized web app with tree-shaking. Inject API URL so the bundle
-# knows how to reach the backend when deployed.
-RUN flutter build web --release --tree-shake-icons --dart-define=API_BASE_URL=$API_BASE_URL
+# knows how to reach the backend when deployed. If a pre-built bundle already
+# exists (copied from the host), reuse it to avoid rebuilding during docker build.
+RUN if [ -d build/web ] && [ "$(ls -A build/web)" ]; then \
+        echo "Using existing pre-built Flutter web bundle (skipping flutter build)"; \
+    else \
+        flutter build web --release --tree-shake-icons --dart-define=API_BASE_URL=$API_BASE_URL; \
+    fi
 
 # Remove unnecessary files to reduce image size
 RUN cd build/web && \
