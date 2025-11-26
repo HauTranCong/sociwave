@@ -4,10 +4,12 @@ import '../data/services/storage_service.dart';
 import '../data/services/facebook_api_service.dart';
 import '../data/services/api_client.dart';
 import '../domain/models/config.dart';
+import 'api_client_provider.dart';
 
 /// Provider for managing application configuration
 class ConfigProvider extends ChangeNotifier {
   final StorageService _storage;
+  ApiClientProvider? _apiClientProvider;
 
   Config _config = Config.initial();
   bool _isLoading = false;
@@ -15,7 +17,9 @@ class ConfigProvider extends ChangeNotifier {
   bool _isConnected = false;
   bool _isTestingConnection = false;
 
-  ConfigProvider(this._storage);
+  ConfigProvider(this._storage, [ApiClientProvider? apiClientProvider]) {
+    _apiClientProvider = apiClientProvider;
+  }
 
   // Getters
   Config get config => _config;
@@ -30,13 +34,18 @@ class ConfigProvider extends ChangeNotifier {
     await loadConfig();
   }
 
+  /// Allow wiring the ApiClientProvider after construction (used by ProxyProvider)
+  void updateApiClientProvider(ApiClientProvider? provider) {
+    _apiClientProvider = provider;
+  }
+
   /// Load configuration from storage
   Future<void> loadConfig() async {
     try {
       _setLoading(true);
       _clearError();
       // Always load configuration from backend API (source of truth)
-      final apiClient = ApiClient();
+      final apiClient = _getApiClient();
       final backendConfig = await apiClient.getConfig();
       _config = backendConfig;
       AppLogger.info('Config loaded from backend');
@@ -55,7 +64,7 @@ class ConfigProvider extends ChangeNotifier {
       _setLoading(true);
       _clearError();
       // Persist to backend API (source of truth)
-      final apiClient = ApiClient();
+      final apiClient = _getApiClient();
       await apiClient.saveConfig(config);
 
       _config = config;
@@ -179,5 +188,9 @@ class ConfigProvider extends ChangeNotifier {
       _error = null;
       notifyListeners();
     }
+  }
+
+  ApiClient _getApiClient() {
+    return _apiClientProvider?.client ?? ApiClient();
   }
 }

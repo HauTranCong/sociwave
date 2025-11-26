@@ -25,9 +25,7 @@ class ProviderSetup {
         Provider<StorageService>.value(value: storageService),
 
         // Theme Provider
-        ChangeNotifierProvider<ThemeProvider>(
-          create: (_) => ThemeProvider(),
-        ),
+        ChangeNotifierProvider<ThemeProvider>(create: (_) => ThemeProvider()),
 
         // Shared ApiClient provider
         ChangeNotifierProvider<ApiClientProvider>(
@@ -36,27 +34,46 @@ class ProviderSetup {
 
         // Auth Provider (injected with ApiClientProvider so token can be set)
         ChangeNotifierProvider<AuthProvider>(
-          create: (context) => AuthProvider(storageService, context.read<ApiClientProvider>())..init(),
+          create: (context) =>
+              AuthProvider(storageService, context.read<ApiClientProvider>())
+                ..init(),
         ),
 
-        // Config Provider
-        ChangeNotifierProvider<ConfigProvider>(
+        // Config Provider (inject shared ApiClient so auth header is reused)
+        ChangeNotifierProxyProvider<ApiClientProvider, ConfigProvider>(
           create: (_) => ConfigProvider(storageService)..init(),
+          update: (_, apiClientProvider, configProvider) {
+            final provider = configProvider ?? ConfigProvider(storageService);
+            provider.updateApiClientProvider(apiClientProvider);
+            return provider;
+          },
         ),
 
         // Rules Provider (use shared ApiClientProvider)
         ChangeNotifierProvider<RulesProvider>(
-          create: (context) => RulesProvider(storageService, context.read<ApiClientProvider>())..init(),
+          create: (context) =>
+              RulesProvider(storageService, context.read<ApiClientProvider>())
+                ..init(),
         ),
 
-        // Reels Provider
-        ChangeNotifierProvider<ReelsProvider>(
+        // Reels Provider (needs shared ApiClient for auth)
+        ChangeNotifierProxyProvider<ApiClientProvider, ReelsProvider>(
           create: (_) => ReelsProvider(storageService),
+          update: (_, apiClientProvider, reelsProvider) {
+            final provider = reelsProvider ?? ReelsProvider(storageService);
+            provider.updateApiClientProvider(apiClientProvider);
+            return provider;
+          },
         ),
 
-        // Comments Provider
-        ChangeNotifierProvider<CommentsProvider>(
+        // Comments Provider (needs shared ApiClient for auth)
+        ChangeNotifierProxyProvider<ApiClientProvider, CommentsProvider>(
           create: (_) => CommentsProvider(),
+          update: (_, apiClientProvider, commentsProvider) {
+            final provider = commentsProvider ?? CommentsProvider();
+            provider.updateApiClientProvider(apiClientProvider);
+            return provider;
+          },
         ),
 
         // Monitor Provider (inject shared ApiClient)
@@ -82,14 +99,16 @@ class ProviderSetup {
       providers: [
         // Existing providers
         ChangeNotifierProvider<ConfigProvider>.value(value: configProvider),
-        
+
         Provider<StorageService>.value(value: storageService),
-        
+
         // Rules Provider
         ChangeNotifierProvider<RulesProvider>(
-          create: (context) => RulesProvider(storageService, context.read<ApiClientProvider>())..init(),
+          create: (context) =>
+              RulesProvider(storageService, context.read<ApiClientProvider>())
+                ..init(),
         ),
-        
+
         // Reels Provider with config
         ChangeNotifierProvider<ReelsProvider>(
           create: (_) {
@@ -98,7 +117,7 @@ class ProviderSetup {
             return provider;
           },
         ),
-        
+
         // Comments Provider with config
         ChangeNotifierProvider<CommentsProvider>(
           create: (_) {
@@ -107,7 +126,7 @@ class ProviderSetup {
             return provider;
           },
         ),
-        
+
         // Monitor Provider (inject shared ApiClient)
         ChangeNotifierProvider<MonitorProvider>(
           create: (context) {

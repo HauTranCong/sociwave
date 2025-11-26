@@ -71,8 +71,19 @@ class ConfigService:
         return {r.object_id: r for r in rules}
 
     def save_rules(self, rules: Dict[str, RuleSchema]):
+        # Map current DB rules for quick lookups and removal tracking
+        existing_rules = {r.object_id: r for r in self.db.query(RuleModel).all()}
+        incoming_ids = set(rules.keys())
+
+        # Delete rules that are missing from the payload (user removed them)
+        for object_id, db_rule in list(existing_rules.items()):
+            if object_id not in incoming_ids:
+                self.db.delete(db_rule)
+                existing_rules.pop(object_id, None)
+
+        # Upsert incoming rules
         for object_id, rule_data in rules.items():
-            db_rule = self.db.query(RuleModel).filter(RuleModel.object_id == object_id).first()
+            db_rule = existing_rules.get(object_id)
             if db_rule:
                 db_rule.match_words = rule_data.match_words
                 db_rule.reply_message = rule_data.reply_message

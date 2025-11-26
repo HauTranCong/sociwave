@@ -5,12 +5,14 @@ import '../data/services/mock_api_service.dart';
 import '../data/services/storage_service.dart';
 import '../data/services/api_client.dart';
 import '../domain/models/config.dart';
+import 'api_client_provider.dart';
 import '../domain/models/reel.dart';
 
 /// Provider for managing video reels
 class ReelsProvider extends ChangeNotifier {
   final StorageService _storage;
-  final ApiClient _apiClient = ApiClient();
+  ApiClientProvider? _apiClientProvider;
+  final ApiClient _fallbackClient = ApiClient();
   MockApiService? _mockApiService;
 
   List<Reel> _reels = [];
@@ -18,7 +20,9 @@ class ReelsProvider extends ChangeNotifier {
   String? _error;
   DateTime? _lastFetchTime;
 
-  ReelsProvider(this._storage);
+  ReelsProvider(this._storage, [ApiClientProvider? apiClientProvider]) {
+    _apiClientProvider = apiClientProvider;
+  }
 
   // Getters
   List<Reel> get reels => _reels;
@@ -61,7 +65,7 @@ class ReelsProvider extends ChangeNotifier {
       if (_mockApiService != null) {
         fetchedReels = await _mockApiService!.getReels();
       } else {
-        fetchedReels = await _apiClient.getReels();
+        fetchedReels = await _getApiClient().getReels();
       }
 
       // Attach rule status to reels
@@ -171,5 +175,14 @@ class ReelsProvider extends ChangeNotifier {
       _error = null;
       notifyListeners();
     }
+  }
+
+  /// Allow wiring the ApiClientProvider after construction (used by ProxyProvider)
+  void updateApiClientProvider(ApiClientProvider? provider) {
+    _apiClientProvider = provider;
+  }
+
+  ApiClient _getApiClient() {
+    return _apiClientProvider?.client ?? _fallbackClient;
   }
 }

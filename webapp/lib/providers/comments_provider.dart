@@ -4,10 +4,12 @@ import '../data/services/mock_api_service.dart';
 import '../data/services/api_client.dart';
 import '../domain/models/comment.dart';
 import '../domain/models/config.dart';
+import 'api_client_provider.dart';
 
 /// Provider for managing comments
 class CommentsProvider extends ChangeNotifier {
-  final ApiClient _apiClient = ApiClient();
+  final ApiClient _fallbackClient = ApiClient();
+  ApiClientProvider? _apiClientProvider;
   MockApiService? _mockApiService;
   Config? _config;
 
@@ -16,7 +18,9 @@ class CommentsProvider extends ChangeNotifier {
   String? _error;
   String? _currentReelId;
 
-  CommentsProvider();
+  CommentsProvider([ApiClientProvider? apiClientProvider]) {
+    _apiClientProvider = apiClientProvider;
+  }
 
   // Getters
   List<Comment> get currentComments {
@@ -61,7 +65,7 @@ class CommentsProvider extends ChangeNotifier {
       if (_mockApiService != null) {
         fetchedComments = await _mockApiService!.getComments(reelId);
       } else {
-        fetchedComments = await _apiClient.getComments(reelId);
+        fetchedComments = await _getApiClient().getComments(reelId);
       }
 
       // Mark replied status based on nested replies (check if page has already replied)
@@ -99,7 +103,7 @@ class CommentsProvider extends ChangeNotifier {
       if (_mockApiService != null) {
         await _mockApiService!.replyToComment(commentId, message);
       } else {
-        await _apiClient.replyToComment(commentId, message);
+        await _getApiClient().replyToComment(commentId, message);
       }
 
       // Mark as replied
@@ -196,5 +200,14 @@ class CommentsProvider extends ChangeNotifier {
       _error = null;
       notifyListeners();
     }
+  }
+
+  /// Allow wiring the ApiClientProvider after construction (used by ProxyProvider)
+  void updateApiClientProvider(ApiClientProvider? provider) {
+    _apiClientProvider = provider;
+  }
+
+  ApiClient _getApiClient() {
+    return _apiClientProvider?.client ?? _fallbackClient;
   }
 }

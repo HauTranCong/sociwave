@@ -18,7 +18,7 @@ class MonitorProvider extends ChangeNotifier {
 
   MonitorProvider(this._storage, [this._apiClientProvider]) {
     // Initialize background service with shared ApiClient when available
-  _monitorService = BackgroundMonitorService(_storage, _apiClientProvider);
+    _monitorService = BackgroundMonitorService(_storage, _apiClientProvider);
     // Set up callback to update stats in real-time
     _monitorService.onStatsUpdated = _reloadStats;
     // Set up callback to handle errors
@@ -39,12 +39,19 @@ class MonitorProvider extends ChangeNotifier {
   /// Initialize monitor provider
   Future<void> init() async {
     try {
-  final monitoringService = MonitoringService(_apiClientProvider?.client ?? ApiClient());
+      final monitoringService = MonitoringService(
+        _apiClientProvider?.client ?? ApiClient(),
+      );
       // Pull current settings from backend so UI reflects server state
       try {
-        final backendIntervalSeconds = await monitoringService.getMonitoringInterval();
-        await _monitorService.setInterval(Duration(seconds: backendIntervalSeconds));
-        AppLogger.info('🛰️ Synced monitoring interval from backend: ${_monitorService.intervalText}');
+        final backendIntervalSeconds = await monitoringService
+            .getMonitoringInterval();
+        await _monitorService.setInterval(
+          Duration(seconds: backendIntervalSeconds),
+        );
+        AppLogger.info(
+          '🛰️ Synced monitoring interval from backend: ${_monitorService.intervalText}',
+        );
       } catch (e) {
         AppLogger.warning('Failed to sync interval from backend: $e');
       }
@@ -53,9 +60,11 @@ class MonitorProvider extends ChangeNotifier {
       bool wasEnabled = _storage.loadMonitoringEnabled();
       try {
         // Prefer backend enabled flag if available
-  wasEnabled = await monitoringService.getMonitoringEnabled();
+        wasEnabled = await monitoringService.getMonitoringEnabled();
       } catch (e) {
-        AppLogger.warning('Failed to sync monitoring enabled state from backend: $e');
+        AppLogger.warning(
+          'Failed to sync monitoring enabled state from backend: $e',
+        );
       }
       final lastCheckTime = _storage.loadLastMonitorCheck();
       final totalChecks = _storage.getTotalMonitorChecks();
@@ -113,8 +122,8 @@ class MonitorProvider extends ChangeNotifier {
       // Also enable server-side monitoring toggle if available
       try {
         await _waitForAuthIfNeeded();
-  final client = _apiClientProvider?.client ?? ApiClient();
-  final monitoringService = MonitoringService(client);
+        final client = _apiClientProvider?.client ?? ApiClient();
+        final monitoringService = MonitoringService(client);
         await monitoringService.setMonitoringEnabled(true);
       } catch (e) {
         AppLogger.warning('Failed to enable server-side monitoring: $e');
@@ -148,8 +157,8 @@ class MonitorProvider extends ChangeNotifier {
       // Also disable server-side monitoring toggle if available
       try {
         await _waitForAuthIfNeeded();
-  final client = _apiClientProvider?.client ?? ApiClient();
-  final monitoringService = MonitoringService(client);
+        final client = _apiClientProvider?.client ?? ApiClient();
+        final monitoringService = MonitoringService(client);
         await monitoringService.setMonitoringEnabled(false);
       } catch (e) {
         AppLogger.warning('Failed to disable server-side monitoring: $e');
@@ -370,7 +379,9 @@ class MonitorProvider extends ChangeNotifier {
   }
 
   /// Wait a short amount of time for auth header to propagate to shared client
-  Future<void> _waitForAuthIfNeeded({Duration timeout = const Duration(seconds: 2)}) async {
+  Future<void> _waitForAuthIfNeeded({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
     if (_apiClientProvider == null) return;
     final end = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(end)) {
@@ -378,7 +389,8 @@ class MonitorProvider extends ChangeNotifier {
       if (header != null && header.isNotEmpty) return;
       await Future.delayed(const Duration(milliseconds: 100));
     }
-    AppLogger.warning('Auth header did not appear on shared ApiClient within ${timeout.inSeconds}s');
+    AppLogger.warning(
+      'Auth header did not appear on shared ApiClient within ${timeout.inSeconds}s',
+    );
   }
-
 }

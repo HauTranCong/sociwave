@@ -479,46 +479,114 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '$year-$month-$day $hour:$minute:$second';
   }
 
+  /// Convert a duration to a friendly "time ago" string
+  String _formatDurationAgo(Duration duration) {
+    if (duration.inSeconds < 60) {
+      return '${duration.inSeconds}s';
+    } else if (duration.inMinutes < 60) {
+      return '${duration.inMinutes}m';
+    } else if (duration.inHours < 24) {
+      final hours = duration.inHours;
+      final minutes = duration.inMinutes % 60;
+      return minutes > 0 ? '${hours}h ${minutes}m' : '${hours}h';
+    } else {
+      final days = duration.inDays;
+      final hours = duration.inHours % 24;
+      return hours > 0 ? '${days}d ${hours}h' : '${days}d';
+    }
+  }
+
+  String _friendlyMonitorError(String error) {
+    final lowerCaseError = error.toLowerCase();
+    if (lowerCaseError.contains('not authenticated') ||
+        lowerCaseError.contains('statuscode: 401') ||
+        lowerCaseError.contains('unauthorized')) {
+      return 'Authentication failed. Please sign in again from Settings.';
+    }
+    if (lowerCaseError.contains('expired')) {
+      return 'Access token expired. Please refresh your credentials.';
+    }
+    if (lowerCaseError.contains('rate limit')) {
+      return 'API rate limit exceeded. Monitoring will retry automatically.';
+    }
+    return error;
+  }
+
   /// Build detailed status text
   Widget _buildStatusText(MonitorProvider provider) {
-    String statusText;
-    Color statusColor;
+    final textTheme = Theme.of(context).textTheme;
+    final hasRecentError = provider.status.hasRecentError;
+    final lastError = provider.lastError;
+    final lastCheck = provider.lastCheck;
 
-    if (!provider.isRunning) {
-      statusText = 'Monitoring is stopped';
-      statusColor = Colors.grey[600]!;
-    } else if (provider.lastError != null && provider.status.hasRecentError) {
-      statusText = 'Error: ${provider.lastError}';
+    IconData icon;
+    Color statusColor;
+    String primaryText;
+    String? secondaryText;
+
+    if (hasRecentError && lastError != null) {
+      icon = Icons.error_outline;
       statusColor = Colors.red[700]!;
-    } else if (provider.lastCheck == null) {
-      statusText = 'Starting monitoring...';
+      var friendlyError = _friendlyMonitorError(lastError);
+      if (!friendlyError.toLowerCase().startsWith('error')) {
+        friendlyError = 'Error: $friendlyError';
+      }
+      primaryText = friendlyError;
+      secondaryText = 'Monitoring is paused until the issue is resolved.';
+    } else if (!provider.isRunning) {
+      icon = Icons.info_outline;
+      statusColor = Colors.grey[600]!;
+      primaryText = 'Monitoring is stopped';
+      secondaryText = 'Enable the switch to resume automatic checks.';
+    } else if (lastCheck == null) {
+      icon = Icons.hourglass_empty;
       statusColor = Colors.blue[700]!;
+      primaryText = 'Starting monitoring...';
+      secondaryText = 'Waiting for the first check to complete.';
     } else {
-      statusText = 'Monitoring activated';
+      icon = Icons.check_circle_outline;
       statusColor = Colors.green[700]!;
+      final formattedTimestamp = _formatTimestamp(lastCheck);
+      final elapsed = _formatDurationAgo(
+        DateTime.now().difference(lastCheck),
+      );
+      primaryText = 'Monitoring active';
+      secondaryText = 'Last check $formattedTimestamp ($elapsed ago)';
     }
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          provider.status.hasRecentError
-              ? Icons.error_outline
-              : provider.isRunning
-              ? Icons.check_circle_outline
-              : Icons.info_outline,
-          size: 16,
-          color: statusColor,
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            statusText,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
               color: statusColor,
-              fontWeight: FontWeight.w500,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                primaryText,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (secondaryText != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 22, top: 2),
+            child: Text(
+              secondaryText,
+              style: textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-        ),
       ],
     );
   }

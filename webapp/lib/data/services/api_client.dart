@@ -30,13 +30,16 @@ class ApiClient {
       _dio.options.headers['Authorization'] = 'Bearer $authToken';
     }
 
-      // Diagnostic interceptor: log outgoing requests and Authorization header
-      _dio.interceptors.add(InterceptorsWrapper(
+    // Diagnostic interceptor: log outgoing requests and Authorization header
+    _dio.interceptors.add(
+      InterceptorsWrapper(
         onRequest: (options, handler) {
           // Debug: log whether Authorization header is present (do NOT log token value)
           final hasAuth = options.headers.containsKey('Authorization');
           // Using print here to keep this diagnostic lightweight during local dev
-          print('[ApiClient] ${options.method.toUpperCase()} ${options.path} authHeaderPresent=$hasAuth');
+          print(
+            '[ApiClient] ${options.method.toUpperCase()} ${options.path} authHeaderPresent=$hasAuth',
+          );
           return handler.next(options);
         },
         onError: (e, handler) {
@@ -49,22 +52,23 @@ class ApiClient {
           }
           return handler.next(e);
         },
-      ));
+      ),
+    );
   }
 
-    /// Update Authorization header on the existing Dio instance.
-    void setAuthToken(String? authToken) {
-      if (authToken != null && authToken.isNotEmpty) {
-        _dio.options.headers['Authorization'] = 'Bearer $authToken';
-      } else {
-        _dio.options.headers.remove('Authorization');
-      }
+  /// Update Authorization header on the existing Dio instance.
+  void setAuthToken(String? authToken) {
+    if (authToken != null && authToken.isNotEmpty) {
+      _dio.options.headers['Authorization'] = 'Bearer $authToken';
+    } else {
+      _dio.options.headers.remove('Authorization');
     }
+  }
 
-    /// Register a callback to be invoked when a 401 Unauthorized is observed
-    void setOnUnauthorized(void Function()? handler) {
-      _onUnauthorized = handler;
-    }
+  /// Register a callback to be invoked when a 401 Unauthorized is observed
+  void setOnUnauthorized(void Function()? handler) {
+    _onUnauthorized = handler;
+  }
 
   /// Diagnostic: return current Authorization header value (if any)
   String? getAuthHeader() => _dio.options.headers['Authorization'] as String?;
@@ -120,7 +124,10 @@ class ApiClient {
   /// Set whether server-side monitoring is enabled
   Future<bool> setMonitoringEnabled(bool enabled) async {
     try {
-      final response = await _dio.post('/monitoring/enabled', queryParameters: {'enabled': enabled});
+      final response = await _dio.post(
+        '/monitoring/enabled',
+        queryParameters: {'enabled': enabled},
+      );
       final data = response.data;
       if (data is Map && data.containsKey('enabled')) {
         return data['enabled'] as bool;
@@ -148,7 +155,10 @@ class ApiClient {
   /// Set monitoring interval in seconds
   Future<int?> setMonitoringInterval(int seconds) async {
     try {
-      final response = await _dio.post('/monitoring/interval', queryParameters: {'interval_seconds': seconds});
+      final response = await _dio.post(
+        '/monitoring/interval',
+        queryParameters: {'interval_seconds': seconds},
+      );
       final data = response.data;
       if (data is Map && data.containsKey('interval_seconds')) {
         return (data['interval_seconds'] as num).toInt();
@@ -202,10 +212,7 @@ class ApiClient {
     try {
       await _dio.post(
         '/reply',
-        queryParameters: {
-          'comment_id': commentId,
-          'message': message,
-        },
+        queryParameters: {'comment_id': commentId, 'message': message},
       );
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -292,7 +299,6 @@ class ApiClient {
       throw _handleDioError(e);
     }
   }
-
 }
 
 /// Simple ApiException to surface HTTP status and message from Dio
@@ -303,7 +309,8 @@ class ApiException implements Exception {
   ApiException(this.message, {this.statusCode});
 
   @override
-  String toString() => 'ApiException(statusCode: $statusCode, message: $message)';
+  String toString() =>
+      'ApiException(statusCode: $statusCode, message: $message)';
 }
 
 ApiException _handleDioError(DioException e) {
