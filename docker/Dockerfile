@@ -6,6 +6,9 @@
 # Stage 1: Build the Flutter web app
 FROM ghcr.io/cirruslabs/flutter:stable AS build
 
+ARG API_BASE_URL="http://127.0.0.1:8000/api"
+ENV API_BASE_URL=${API_BASE_URL}
+
 # Set working directory
 WORKDIR /app
 
@@ -18,8 +21,9 @@ RUN flutter pub get
 # Copy the rest of the Flutter app
 COPY webapp/ .
 
-# Build the optimized web app with tree-shaking
-RUN flutter build web --release --tree-shake-icons
+# Build the optimized web app with tree-shaking. Inject API URL so the bundle
+# knows how to reach the backend when deployed.
+RUN flutter build web --release --tree-shake-icons --dart-define=API_BASE_URL=$API_BASE_URL
 
 # Remove unnecessary files to reduce image size
 RUN cd build/web && \

@@ -10,14 +10,17 @@ class ApiClient {
   final Dio _dio;
   void Function()? _onUnauthorized;
 
-  // Base URL for the FastAPI backend.
-  // For local development with docker-compose, the backend is exposed on 8000.
-  static const String _baseUrl = 'http://127.0.0.1:8000/api';
+  /// Base URL for the FastAPI backend.
+  /// `API_BASE_URL` can be supplied at build time via `--dart-define`.
+  static const String _compileTimeBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://127.0.0.1:8000/api',
+  );
 
-  ApiClient({String? authToken})
+  ApiClient({String? authToken, String? baseUrlOverride})
     : _dio = Dio(
         BaseOptions(
-          baseUrl: _baseUrl,
+          baseUrl: baseUrlOverride ?? _compileTimeBaseUrl,
           // Increase timeouts to be more forgiving for slower local/back-end starts
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 15),

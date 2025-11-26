@@ -34,10 +34,12 @@ build/
 *.log
 docker-compose.override.yml
 
-# Environment
+# Environment & deploy
 .env
 .env.local
 .env.*.local
+key.pem
+deploy.sh
 
 # Testing
 coverage/

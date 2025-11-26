@@ -259,6 +259,16 @@ Deploy to traditional VPS:
 - Use Docker Compose for orchestration
 - Set up Nginx as reverse proxy (if not using Docker)
 
+### 4. Single-Server (All-in-One) Deployment
+
+Serve the Flutter frontend and FastAPI backend from the same machine with Docker Compose:
+
+1. Point the web bundle to the publicly reachable backend URL: `export API_BASE_URL="https://your-domain.com/api"` (or protocol/port that matches your server). This value is passed into the Flutter build and baked into the static assets.
+2. Allow the backend to accept browser calls from that origin: `export FRONTEND_ORIGINS="https://your-domain.com"`. Multiple origins can be comma-separated.
+3. Build and start both services: `docker compose -f docker/docker-compose.yml up -d --build`.
+4. Open ports 80 (frontend via Nginx) and 8000 (FastAPI) in your firewall/security group, or front the stack with a reverse proxy/SSL terminator of your choice.
+5. Browse to `https://your-domain.com` (or `http://your-domain.com:8080` if you keep the default port mapping) and the web app will call the backend on the same host without CORS issues.
+
 ---
 
 ## ⚠️ Important Notes

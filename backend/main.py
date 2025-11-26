@@ -29,13 +29,23 @@ if not logger.handlers:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-# Allow frontend (served on localhost:8080) to call the API from the browser.
+# Allow frontend to call the API from the browser. Origins can be extended via env.
+_default_frontend_origins = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+]
+_configured_frontend_origins = getattr(settings, "FRONTEND_ORIGINS", [])
+if _configured_frontend_origins:
+    # dict.fromkeys preserves order while removing duplicates
+    _allowed_origins = list(
+        dict.fromkeys(_default_frontend_origins + _configured_frontend_origins)
+    )
+else:
+    _allowed_origins = _default_frontend_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-    ],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
