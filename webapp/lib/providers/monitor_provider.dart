@@ -12,6 +12,8 @@ class MonitorProvider extends ChangeNotifier {
   final StorageService _storage;
   late final BackgroundMonitorService _monitorService;
   final ApiClientProvider? _apiClientProvider;
+  bool _backendSynced = false;
+  bool _isSyncingBackend = false;
 
   MonitorStatus _status = MonitorStatus.initial();
   bool _isInitialized = false;
@@ -23,6 +25,9 @@ class MonitorProvider extends ChangeNotifier {
     _monitorService.onStatsUpdated = _reloadStats;
     // Set up callback to handle errors
     _monitorService.onError = _handleError;
+
+    // Listen for auth header to appear so we can sync after login
+    _apiClientProvider?.addListener(_handleApiClientUpdate);
   }
 
   // Getters
@@ -38,7 +43,17 @@ class MonitorProvider extends ChangeNotifier {
 
   /// Initialize monitor provider
   Future<void> init() async {
+    if (_isSyncingBackend) return;
     try {
+      // If no auth header yet (before login), initialize from local storage only
+      if (!_hasAuthHeader()) {
+        _loadLocalStatusOnly();
+        _isInitialized = true;
+        notifyListeners();
+        return;
+      }
+
+      _isSyncingBackend = true;
       final monitoringService = MonitoringService(
         _apiClientProvider?.client ?? ApiClient(),
       );
@@ -78,6 +93,7 @@ class MonitorProvider extends ChangeNotifier {
       );
 
       _isInitialized = true;
+      _backendSynced = true;
       AppLogger.info(
         '🤖 Monitor initialized (checks: $totalChecks, replies: $totalReplies)',
       );
@@ -93,6 +109,8 @@ class MonitorProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e, stackTrace) {
       AppLogger.error('Failed to initialize MonitorProvider', e, stackTrace);
+    } finally {
+      _isSyncingBackend = false;
     }
   }
 
@@ -392,5 +410,28 @@ class MonitorProvider extends ChangeNotifier {
     AppLogger.warning(
       'Auth header did not appear on shared ApiClient within ${timeout.inSeconds}s',
     );
+  }
+
+  bool _hasAuthHeader() {
+    return _apiClientProvider?.client.getAuthHeader()?.isNotEmpty ?? false;
+  }
+
+  void _loadLocalStatusOnly() {
+    final lastCheckTime = _storage.loadLastMonitorCheck();
+    final totalChecks = _storage.getTotalMonitorChecks();
+    final totalReplies = _storage.getTotalReplies();
+
+    _status = MonitorStatus(
+      isRunning: false,
+      lastCheck: lastCheckTime,
+      totalChecks: totalChecks,
+      totalReplies: totalReplies,
+    );
+  }
+
+  void _handleApiClientUpdate() {
+    if (_backendSynced || _isSyncingBackend) return;
+    if (!_hasAuthHeader()) return;
+    init();
   }
 }

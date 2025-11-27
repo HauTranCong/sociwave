@@ -30,27 +30,28 @@ A cross-platform Flutter web application for automated Facebook Reel comment man
 
 ```
 sociwave/
-├── backend/             # Python FastAPI Backend
-│   ├── app/             # Core application logic
-│   │   ├── api/         # API endpoints
-│   │   ├── core/        # Database and configuration
-│   │   ├── models/      # Pydantic and SQLAlchemy models
-│   │   └── services/    # Business logic
-│   ├── scripts/         # Test scripts
-│   ├── Dockerfile       # Backend Docker image
-│   └── requirements.txt # Python dependencies
-├── webapp/              # Flutter application source code
-│   ├── lib/             # Main application code
-│   ├── web/             # Web-specific assets
-│   ├── build/web/       # Production build
-│   └── pubspec.yaml     # Dependencies
-├── docker/              # Docker configuration files
-│   ├── docker-compose.yml # Orchestrates both frontend and backend
-│   ├── Dockerfile       # Frontend Docker image (Flutter + Nginx)
-│   └── nginx.conf       # Production Nginx config
-├── docs/                # Comprehensive documentation
-├── scripts/             # Build and deployment automation
-└── README.md            # This file
+├── backend/               # FastAPI backend
+│   ├── app/               # Core app package
+│   │   ├── api/           # FastAPI routers
+│   │   ├── core/          # settings, database, config
+│   │   ├── models/        # Pydantic + SQLAlchemy models
+│   │   └── services/      # business logic and schedulers
+│   ├── docs/              # backend-specific docs/diagrams
+│   ├── scripts/           # helper scripts (e.g., create_user.py, test_api.py)
+│   ├── data/              # local SQLite database
+│   ├── main.py            # backend entrypoint
+│   ├── Dockerfile
+│   └── requirements.txt
+├── webapp/                # Flutter web application
+│   ├── lib/               # UI, state management, services
+│   ├── web/               # web assets and config
+│   ├── test/              # widget/unit tests
+│   └── pubspec.yaml
+├── docker/                # Docker configuration (compose, Nginx)
+├── docs/                  # architecture and deployment docs
+├── scripts/               # top-level build/deploy scripts
+├── deploy.sh              # deployment helper
+└── README.md              # this file
 ```
 
 ---

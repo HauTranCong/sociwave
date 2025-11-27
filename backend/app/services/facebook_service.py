@@ -51,6 +51,19 @@ class FacebookService:
             "{id,message,from,created_time}"
         )
 
+    def _raise_http_error(self, e: requests.HTTPError, message: str):
+        """Surface the underlying Facebook error payload to clients for debugging."""
+        status_code = e.response.status_code if e.response is not None else 502
+        body: Any
+        try:
+            body = e.response.json() if e.response is not None else None
+        except Exception:
+            body = e.response.text if e.response is not None else str(e)
+        raise HTTPException(
+            status_code=status_code,
+            detail={"message": message, "facebook_error": body},
+        )
+
     def get_user_info(self) -> Dict[str, Any]:
         url = f"{self.base_url}/{self.page_id}"
         params = self._build_params(
@@ -61,13 +74,7 @@ class FacebookService:
             response.raise_for_status()
             return response.json()
         except requests.HTTPError as e:
-            # Translate HTTP errors into FastAPI HTTPException with details
-            status_code = e.response.status_code if e.response is not None else 502
-            try:
-                body = e.response.json()
-            except Exception:
-                body = {"raw": e.response.text if e.response is not None else str(e)}
-            raise HTTPException(status_code=status_code, detail={"facebook_error": body})
+            self._raise_http_error(e, "Failed to fetch user/page info from Facebook")
         except Exception as e:
             # Network or other unexpected error
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
@@ -86,7 +93,7 @@ class FacebookService:
             data = response.json()
             return [Reel.parse_obj(item) for item in data.get("data", [])]
         except requests.HTTPError as e:
-            raise HTTPException(status_code=e.response.status_code if e.response is not None else 502, detail="Failed to fetch reels from Facebook")
+            self._raise_http_error(e, "Failed to fetch reels from Facebook")
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
@@ -104,7 +111,7 @@ class FacebookService:
             data = response.json()
             return data.get("data", [])
         except requests.HTTPError as e:
-            raise HTTPException(status_code=e.response.status_code if e.response is not None else 502, detail="Failed to fetch posts from Facebook")
+            self._raise_http_error(e, "Failed to fetch posts from Facebook")
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
@@ -122,7 +129,7 @@ class FacebookService:
             data = response.json()
             return [Comment.parse_obj(item) for item in data.get("data", [])]
         except requests.HTTPError as e:
-            raise HTTPException(status_code=e.response.status_code if e.response is not None else 502, detail="Failed to fetch comments from Facebook")
+            self._raise_http_error(e, "Failed to fetch comments from Facebook")
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 

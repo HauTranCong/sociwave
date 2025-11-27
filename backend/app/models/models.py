@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, JSON, Integer
+from sqlalchemy import Column, String, Boolean, JSON, Integer, UniqueConstraint
 from app.core.database import Base
 
 # Pydantic models for external data (Facebook API)
@@ -62,6 +62,8 @@ class Config(BaseModel):
 # --- SQLAlchemy Models for Database ---
 class RuleModel(Base):
     __tablename__ = "rules"
+    user_id = Column(Integer, primary_key=True, index=True)
+    page_id = Column(String, primary_key=True, index=True)
     object_id = Column(String, primary_key=True, index=True)
     match_words = Column(JSON)
     reply_message = Column(String)
@@ -71,8 +73,11 @@ class RuleModel(Base):
 class ConfigModel(Base):
     __tablename__ = "config"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    key = Column(String, unique=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    page_id = Column(String, index=True, nullable=False, default="default")
+    key = Column(String, index=True)
     value = Column(String)
+    __table_args__ = (UniqueConstraint('user_id', 'page_id', 'key', name='uq_config_user_page_key'),)
 
 class UserModel(Base):
     __tablename__ = "users"
@@ -80,6 +85,3 @@ class UserModel(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     theme_mode = Column(String, default='system')
-
-
-

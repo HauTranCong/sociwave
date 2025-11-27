@@ -25,6 +25,87 @@ class StorageService {
     return StorageService(prefs, secureStorage);
   }
 
+  // ==================== Page Management ====================
+
+  /// Persist the list of managed Facebook Page IDs for the current user
+  Future<void> saveManagedPages(List<String> pageIds) async {
+    final sanitized = pageIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList();
+    await _prefs.setString(StorageKeys.managedPagesKey, jsonEncode(sanitized));
+    AppLogger.info('Saved ${sanitized.length} managed pages');
+  }
+
+  /// Load the list of managed Facebook Page IDs
+  List<String> loadManagedPages() {
+    final raw = _prefs.getString(StorageKeys.managedPagesKey);
+    if (raw == null || raw.isEmpty) {
+      return [];
+    }
+
+    try {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      final pages = decoded
+          .map((entry) => entry.toString().trim())
+          .where((id) => id.isNotEmpty)
+          .toList();
+      AppLogger.info('Loaded ${pages.length} managed pages');
+      return pages;
+    } catch (e, stackTrace) {
+      AppLogger.error('Failed to decode managed pages', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Save the last selected page ID so the UI can restore the active scope
+  Future<void> saveSelectedPageId(String pageId) async {
+    await _prefs.setString(StorageKeys.pageIdKey, pageId);
+  }
+
+  /// Load the last selected page ID (if any)
+  String? loadSelectedPageId() {
+    final stored = _prefs.getString(StorageKeys.pageIdKey);
+    if (stored == null) return null;
+    final trimmed = stored.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  /// Clear the stored selected page (used when no pages remain)
+  Future<void> clearSelectedPageId() async {
+    await _prefs.remove(StorageKeys.pageIdKey);
+  }
+
+  // ==================== Page Metadata ====================
+
+  /// Persist friendly page names fetched from the backend.
+  Future<void> savePageNames(Map<String, String> pageNames) async {
+    final sanitized = <String, String>{};
+    pageNames.forEach((id, name) {
+      final trimmedId = id.trim();
+      if (trimmedId.isNotEmpty) {
+        sanitized[trimmedId] = name;
+      }
+    });
+    await _prefs.setString(StorageKeys.pageNamesKey, jsonEncode(sanitized));
+    AppLogger.info('Saved ${sanitized.length} page names');
+  }
+
+  /// Load friendly page names
+  Map<String, String> loadPageNames() {
+    final raw = _prefs.getString(StorageKeys.pageNamesKey);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return decoded.map(
+        (key, value) => MapEntry(key.toString(), value.toString()),
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error('Failed to decode page names', e, stackTrace);
+      return {};
+    }
+  }
+
   // ==================== Rules ====================
 
   /// Save all rules
@@ -292,7 +373,7 @@ class StorageService {
   Set<String> loadInboxedUsers() {
     final data = _prefs.getString(StorageKeys.inboxedUsersKey);
     if (data == null) return {};
-    
+
     try {
       final list = jsonDecode(data) as List<dynamic>;
       return list.cast<String>().toSet();

@@ -4,6 +4,7 @@ import concurrent.futures
 import time
 
 BASE_URL = "http://localhost:8000/api"
+PAGE_ID = "your_page_id_here"  # replace with target Facebook Page ID
 
 def print_response(name, response):
     """Helper to print formatted JSON responses."""
@@ -26,26 +27,26 @@ def test_login():
 
 def get_config(headers):
     """Fetch the current configuration."""
-    response = requests.get(f"{BASE_URL}/config", headers=headers)
+    response = requests.get(f"{BASE_URL}/config", headers=headers, params={"page_id": PAGE_ID})
     print_response("2. Get Initial Config", response)
 
 def save_config(headers):
     """Save a new application configuration."""
     config_data = {
         "accessToken": "", # IMPORTANT: Replace with a valid token
-        "pageId": "",           # IMPORTANT: Replace with a valid Page ID
+        "pageId": PAGE_ID,           # IMPORTANT: Replace with a valid Page ID
         "version": "v20.0",
         "useMockData": False,
         "reelsLimit": 5,
         "commentsLimit": 20,
         "repliesLimit": 20,
     }
-    response = requests.post(f"{BASE_URL}/config", json=config_data, headers=headers)
+    response = requests.post(f"{BASE_URL}/config", json=config_data, headers=headers, params={"page_id": PAGE_ID})
     print_response("3. Save New Config", response)
 
 def get_rules(headers):
     """Fetch the current rules."""
-    response = requests.get(f"{BASE_URL}/rules", headers=headers)
+    response = requests.get(f"{BASE_URL}/rules", headers=headers, params={"page_id": PAGE_ID})
     print_response("4. Get Initial Rules", response)
 
 def save_rules(headers):
@@ -65,13 +66,13 @@ def save_rules(headers):
             "enabled": True,
         },
     }
-    response = requests.post(f"{BASE_URL}/rules", json=rules_data, headers=headers)
+    response = requests.post(f"{BASE_URL}/rules", json=rules_data, headers=headers, params={"page_id": PAGE_ID})
     print_response("5. Save New Rules", response)
 
 def trigger_monitoring(headers):
     """Trigger the main monitoring task."""
     print("--- 6. Triggering Monitoring Cycle ---")
-    response = requests.post(f"{BASE_URL}/trigger-monitoring", headers=headers)
+    response = requests.post(f"{BASE_URL}/trigger-monitoring", headers=headers, params={"page_id": PAGE_ID})
     print_response("Monitoring Cycle Response", response)
     print("-" * 40)
 
@@ -81,8 +82,8 @@ def stress_test_worker(auth_token, worker_id):
     headers = {"Authorization": f"Bearer {auth_token}"}
     try:
         # Simulate a common user action: fetching data
-        config_res = requests.get(f"{BASE_URL}/config", headers=headers, timeout=10)
-        rules_res = requests.get(f"{BASE_URL}/rules", headers=headers, timeout=10)
+        config_res = requests.get(f"{BASE_URL}/config", headers=headers, params={"page_id": PAGE_ID}, timeout=10)
+        rules_res = requests.get(f"{BASE_URL}/rules", headers=headers, params={"page_id": PAGE_ID}, timeout=10)
         if config_res.status_code == 200 and rules_res.status_code == 200:
             print(f"[Worker {worker_id}] Task successful.")
             return True

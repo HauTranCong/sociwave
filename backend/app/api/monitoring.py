@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, Query
 import logging
 from app.services.monitor_service import MonitorService
 from app.services.facebook_service import FacebookService
@@ -19,11 +19,25 @@ def get_db():
     finally:
         db.close()
 
-def get_config_service(db: Session = Depends(get_db)):
-    return ConfigService(db)
+def get_page_id(page_id: str = Query(..., description="Facebook Page ID to scope config/rules")):
+    return page_id
+
+def get_config_service(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    page_id: str = Depends(get_page_id),
+):
+    return ConfigService(db, user_id=current_user.id, page_id=page_id)
 
 def get_facebook_service(config_service: ConfigService = Depends(get_config_service)):
     config = config_service.load_config()
+    # Ensure requested page_id matches stored config pageId for clarity
+    if config.pageId and config_service.page_id and config.pageId != config_service.page_id:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Requested page_id does not match stored config.pageId",
+        )
     # If required config values are missing, raise a 400 so client gets a clear message
     if not config.accessToken or not config.pageId:
         from fastapi import HTTPException, status
@@ -67,25 +81,23 @@ def get_monitoring_enabled(config_service: ConfigService = Depends(get_config_se
 
 
 @router.post('/monitoring/enabled')
-def set_monitoring_enabled(enabled: bool, config_service: ConfigService = Depends(get_config_service), _current_user=Depends(get_current_user)):
-    # Persist the monitoringEnabled flag in the config table
-    config = config_service.load_config()
-    cfg_dict = config.dict()
-    cfg_dict['monitoringEnabled'] = 'true' if enabled else 'false'
-    # Reuse Config schema to save (ConfigService.save_config expects Config pydantic model)
-    # But Config Schema doesn't define monitoringEnabled; save directly into DB
-    # Use the db from ConfigService to store the key
-    # We will use save_config by building a Config object for known keys and then persisting the monitoring key manually
-    # Simpler: directly interact with DB models
-    db = config_service.db
-    from app.models.models import ConfigModel
-    db_config = db.query(ConfigModel).filter(ConfigModel.key == 'monitoringEnabled').first()
-    if db_config:
-        db_config.value = 'true' if enabled else 'false'
-    else:
-        db_config = ConfigModel(key='monitoringEnabled', value='true' if enabled else 'false')
-        db.add(db_config)
-    db.commit()
+def set_monitoring_enabled(
+    enabled: bool,
+    config_service: ConfigService = Depends(get_config_service),
+    current_user=Depends(get_current_user),
+):
+    # Persist the monitoringEnabled flag in the config table scoped to this user/page
+    config_service.set_monitoring_enabled(enabled)
+
+    # Sync scheduler job for this user if scheduler is running
+    try:
+        import app.scheduler as _sched_mod
+        sched = getattr(_sched_mod, 'monitoring_scheduler', None)
+        if sched is not None:
+            sched.refresh_user_job(current_user.id, config_service.page_id)
+    except Exception:
+        # avoid raising scheduler issues to API clients
+        pass
 
     return {'enabled': enabled}
 
@@ -97,30 +109,30 @@ def get_monitoring_interval(config_service: ConfigService = Depends(get_config_s
 
 
 @router.post('/monitoring/interval')
-def set_monitoring_interval(interval_seconds: int, config_service: ConfigService = Depends(get_config_service), _current_user=Depends(get_current_user)):
-    # Persist interval in seconds to config table
-    db = config_service.db
-    from app.models.models import ConfigModel
-    db_config = db.query(ConfigModel).filter(ConfigModel.key == 'monitoringIntervalSeconds').first()
-    if db_config:
-        db_config.value = str(int(interval_seconds))
-    else:
-        db_config = ConfigModel(key='monitoringIntervalSeconds', value=str(int(interval_seconds)))
-        db.add(db_config)
-    db.commit()
-    # If the scheduler singleton exists, reschedule job
+def set_monitoring_interval(
+    interval_seconds: int,
+    config_service: ConfigService = Depends(get_config_service),
+    current_user=Depends(get_current_user),
+):
+    # Persist interval in seconds to config table scoped to this user/page
+    config_service.set_monitoring_interval_seconds(interval_seconds)
+
+    # If the scheduler singleton exists, reschedule this user's job
     try:
         import app.scheduler as _sched_mod
         sched = getattr(_sched_mod, 'monitoring_scheduler', None)
         if sched is not None:
-            sched.reschedule(int(interval_seconds))
+            sched.reschedule(current_user.id, config_service.page_id, int(interval_seconds))
     except Exception:
         pass
     return {'interval_seconds': int(interval_seconds)}
 
 
 @router.get('/monitoring/status')
-def monitoring_status(config_service: ConfigService = Depends(get_config_service), _current_user=Depends(get_current_user)):
+def monitoring_status(
+    config_service: ConfigService = Depends(get_config_service),
+    current_user=Depends(get_current_user),
+):
     """Return runtime monitoring status for debugging/admins."""
     enabled = config_service.get_monitoring_enabled()
     interval = config_service.get_monitoring_interval_seconds(300)
@@ -137,9 +149,9 @@ def monitoring_status(config_service: ConfigService = Depends(get_config_service
         import app.scheduler as _sched_mod
         sched = getattr(_sched_mod, 'monitoring_scheduler', None)
         if sched is not None:
-            status['scheduler_running'] = True
+            status['scheduler_running'] = getattr(getattr(sched, 'scheduler', None), 'running', False) or bool(getattr(sched, 'jobs', {}))
             try:
-                job = getattr(sched, 'job', None)
+                job = getattr(sched, 'jobs', {}).get((current_user.id, config_service.page_id))
                 if job is not None:
                     status['job_id'] = getattr(job, 'id', None)
             except Exception:
@@ -147,6 +159,8 @@ def monitoring_status(config_service: ConfigService = Depends(get_config_service
 
             # last_run may be a datetime attribute if scheduler implementation sets it
             last_run = getattr(sched, 'last_run', None)
+            if isinstance(last_run, dict):
+                last_run = last_run.get((current_user.id, config_service.page_id))
             if last_run is not None:
                 try:
                     status['last_run_utc'] = last_run.isoformat()
@@ -160,6 +174,11 @@ def monitoring_status(config_service: ConfigService = Depends(get_config_service
 
 @router.get("/user-info", response_model=Dict[str, Any])
 def get_user_info(facebook_service: FacebookService = Depends(get_facebook_service)):
+    return facebook_service.get_user_info()
+
+@router.get("/me", response_model=Dict[str, Any])
+def get_me(facebook_service: FacebookService = Depends(get_facebook_service)):
+    """Return basic profile info (id, name, picture) for the configured page/user."""
     return facebook_service.get_user_info()
 
 @router.get("/reels", response_model=List[Reel])

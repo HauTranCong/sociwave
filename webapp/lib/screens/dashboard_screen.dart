@@ -25,6 +25,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  bool _isSwitchingPage = false;
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +34,120 @@ class _DashboardScreenState extends State<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
+  }
+
+  Widget _buildStatisticsRow({
+    required RulesProvider rulesProvider,
+    required ReelsProvider reelsProvider,
+    required ConfigProvider configProvider,
+  }) {
+    final pageId = configProvider.config.pageId;
+    final pageLabel = configProvider.pageLabel(pageId);
+
+    return Row(
+      children: [
+        const SizedBox(width: 12),
+        Expanded(
+          child: StatCard(
+            icon: Icons.person,
+            title: 'Name',
+            value: pageLabel.isNotEmpty ? pageLabel : 'Not set',
+            subtitle: pageId.isNotEmpty ? 'ID: $pageId' : 'No page selected',
+            color: Colors.orange,
+          ),
+        ),
+        Expanded(
+          child: StatCard(
+            icon: Icons.rule,
+            title: 'Active Rules',
+            value: '${rulesProvider.enabledRuleCount}',
+            subtitle: 'of ${rulesProvider.ruleCount} total',
+            color: Colors.blue,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: StatCard(
+            icon: Icons.video_library,
+            title: 'Reels Loaded',
+            value: '${reelsProvider.reels.length}',
+            subtitle: 'from Facebook / cache',
+            color: Colors.green,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReelsSection(ReelsProvider reelsProvider) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Your Reels',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              '${reelsProvider.reels.length} reels',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (reelsProvider.isLoading)
+          const LoadingIndicator(message: 'Loading reels...')
+        else if (reelsProvider.error != null)
+          ErrorDisplay(message: reelsProvider.error!, onRetry: _loadData)
+        else if (reelsProvider.reels.isEmpty)
+          EmptyState(
+            icon: Icons.video_library_outlined,
+            title: 'No Reels Found',
+            message:
+                'Click the refresh button to load your Facebook reels.\n\nMake sure mock data is disabled in Settings.',
+            actionLabel: 'Load Reels',
+            onAction: _refreshData,
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: reelsProvider.reels.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final reel = reelsProvider.reels[index];
+              return ReelCard(
+                reel: reel,
+                onTap: () {
+                  context.push(
+                    AppRouter.comments,
+                    extra: {
+                      'reelId': reel.id,
+                      'reelDescription': reel.description,
+                    },
+                  );
+                },
+                onEditRule: () {
+                  context.push(
+                    AppRouter.ruleEditor,
+                    extra: {
+                      'reelId': reel.id,
+                      'reelDescription': reel.description,
+                    },
+                  );
+                },
+              );
+            },
+          ),
+      ],
+    );
   }
 
   Future<void> _loadData() async {
@@ -66,6 +182,104 @@ class _DashboardScreenState extends State<DashboardScreen> {
     commentsProvider.initialize(configProvider.config);
 
     await Future.wait([reelsProvider.fetchReels(), rulesProvider.loadRules()]);
+  }
+
+  Future<bool> _switchToPage(String pageId) async {
+    if (_isSwitchingPage) return false;
+    final configProvider = context.read<ConfigProvider>();
+    if (configProvider.selectedPageId == pageId) {
+      return true;
+    }
+
+    setState(() {
+      _isSwitchingPage = true;
+    });
+    try {
+      await configProvider.selectPage(pageId);
+      if (!mounted) return false;
+      await _loadData();
+      return true;
+    } finally {
+      if (mounted) {
+        setState(() => _isSwitchingPage = false);
+      }
+    }
+  }
+
+  Future<void> _openPageDetails(String pageId) async {
+    final switched = await _switchToPage(pageId);
+    if (!mounted || !switched) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: FractionallySizedBox(
+            heightFactor: 0.92,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: SingleChildScrollView(
+                child: Consumer3<RulesProvider, ReelsProvider, ConfigProvider>(
+                  builder:
+                      (
+                        context,
+                        rulesProvider,
+                        reelsProvider,
+                        configProvider,
+                        _,
+                      ) {
+                        final pageId = configProvider.config.pageId;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.dashboard_customize,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    configProvider.pageLabel(pageId),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () => Navigator.of(context).pop(),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _buildStatisticsRow(
+                              rulesProvider: rulesProvider,
+                              reelsProvider: reelsProvider,
+                              configProvider: configProvider,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildMonitoringSection(margin: EdgeInsets.zero),
+                            const SizedBox(height: 16),
+                            _buildReelsSection(reelsProvider),
+                          ],
+                        );
+                      },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _refreshData() async {
@@ -157,102 +371,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // API Configuration Banner (if using mock data)
             SliverToBoxAdapter(child: _buildConfigBanner()),
 
-            // Statistics Header
-            SliverToBoxAdapter(child: _buildStatisticsSection()),
+            // Page selector cards
+            SliverToBoxAdapter(child: _buildPageCardsSection()),
 
-            // Monitoring Status
-            SliverToBoxAdapter(child: _buildMonitoringSection()),
-
-            // Reels List Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Your Reels',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Consumer<ReelsProvider>(
-                      builder: (context, provider, child) {
-                        return Text(
-                          '${provider.reels.length} reels',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: Colors.grey[600]),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Reels List
-            Consumer<ReelsProvider>(
-              builder: (context, reelsProvider, child) {
-                if (reelsProvider.isLoading) {
-                  return const SliverFillRemaining(
-                    child: LoadingIndicator(message: 'Loading reels...'),
-                  );
-                }
-
-                if (reelsProvider.error != null) {
-                  return SliverFillRemaining(
-                    child: ErrorDisplay(
-                      message: reelsProvider.error!,
-                      onRetry: _loadData,
-                    ),
-                  );
-                }
-
-                if (reelsProvider.reels.isEmpty) {
-                  return SliverFillRemaining(
-                    child: EmptyState(
-                      icon: Icons.video_library_outlined,
-                      title: 'No Reels Found',
-                      message:
-                          'Click the refresh button to load your Facebook reels.\n\nMake sure mock data is disabled in Settings.',
-                      actionLabel: 'Load Reels',
-                      onAction: _refreshData,
-                    ),
-                  );
-                }
-
-                // Display in list view for better card visibility
-                return SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final reel = reelsProvider.reels[index];
-                      return ReelCard(
-                        reel: reel,
-                        onTap: () {
-                          context.push(
-                            AppRouter.comments,
-                            extra: {
-                              'reelId': reel.id,
-                              'reelDescription': reel.description,
-                            },
-                          );
-                        },
-                        onEditRule: () {
-                          context.push(
-                            AppRouter.ruleEditor,
-                            extra: {
-                              'reelId': reel.id,
-                              'reelDescription': reel.description,
-                            },
-                          );
-                        },
-                      );
-                    }, childCount: reelsProvider.reels.length),
-                  ),
-                );
-              },
-            ),
+            // Prompt to open page details
+            SliverToBoxAdapter(child: _buildPageDetailPrompt()),
 
             // Bottom Spacing
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -322,45 +445,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatisticsSection() {
-    return Consumer3<RulesProvider, ReelsProvider, ConfigProvider>(
-      builder: (context, rulesProvider, reelsProvider, configProvider, child) {
-        final pageId = configProvider.config.pageId;
-
+  Widget _buildPageCardsSection() {
+    return Consumer<ConfigProvider>(
+      builder: (context, provider, _) {
+        final pages = provider.managedPages;
+        if (pages.isEmpty) return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(width: 12),
-              Expanded(
-                child: InkWell(
-                  onTap: () => context.go(AppRouter.settings),
-                  child: StatCard(
-                    icon: Icons.person,
-                    title: 'Page Profile',
-                    value: pageId.isNotEmpty ? pageId : 'Not set',
-                    subtitle: 'Manage pages & profiles',
-                    color: Colors.orange,
-                  ),
-                ),
+              Text(
+                'Pages',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
-              Expanded(
-                child: StatCard(
-                  icon: Icons.rule,
-                  title: 'Active Rules',
-                  value: '${rulesProvider.enabledRuleCount}',
-                  subtitle: 'of ${rulesProvider.ruleCount} total',
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: StatCard(
-                  icon: Icons.video_library,
-                  title: 'Reels Loaded',
-                  value: '${reelsProvider.reels.length}',
-                  subtitle: 'from Facebook / cache',
-                  color: Colors.green,
+              const SizedBox(height: 8),
+              if (_isSwitchingPage) const LinearProgressIndicator(minHeight: 2),
+              if (_isSwitchingPage) const SizedBox(height: 6),
+              ...pages.map(
+                (pageId) => Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: _buildPageCard(provider, pageId),
                 ),
               ),
             ],
@@ -370,11 +477,107 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMonitoringSection() {
+  Widget _buildPageDetailPrompt() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(
+                Icons.touch_app,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageCard(ConfigProvider provider, String pageId) {
+    final theme = Theme.of(context);
+    final isConfigured = provider.isPageConfigured(pageId);
+    final isConnected = provider.isPageConnected(pageId);
+    final pageLabel = provider.pageLabel(pageId);
+    final borderColor = Colors.grey.withOpacity(
+      theme.brightness == Brightness.dark ? 0.45 : 0.25,
+    );
+    final iconColor = isConnected ? Colors.green : Colors.grey.withOpacity(0.8);
+
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: borderColor, width: 1),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: _isSwitchingPage ? null : () => _openPageDetails(pageId),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.badge_outlined, color: iconColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      pageLabel,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.go(AppRouter.settings),
+                    child: const Text('Settings'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Chip(
+                    label: Text(isConfigured ? 'Configured' : 'Missing config'),
+                    backgroundColor: isConfigured
+                        ? Colors.green.withOpacity(0.15)
+                        : Colors.orangeAccent.withOpacity(0.15),
+                    labelStyle: theme.textTheme.bodySmall?.copyWith(
+                      color: isConfigured ? Colors.green : Colors.orangeAccent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Chip(
+                    label: Text(isConnected ? 'Connected' : 'Not Connected'),
+                    backgroundColor: isConnected
+                        ? Colors.green.withOpacity(0.15)
+                        : Colors.orangeAccent.withOpacity(0.15),
+                    labelStyle: theme.textTheme.bodySmall?.copyWith(
+                      color: isConnected ? Colors.green : Colors.orangeAccent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMonitoringSection({EdgeInsets? margin}) {
     return Consumer<MonitorProvider>(
       builder: (context, provider, child) {
         return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin:
+              margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -547,9 +750,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       icon = Icons.check_circle_outline;
       statusColor = Colors.green[700]!;
       final formattedTimestamp = _formatTimestamp(lastCheck);
-      final elapsed = _formatDurationAgo(
-        DateTime.now().difference(lastCheck),
-      );
+      final elapsed = _formatDurationAgo(DateTime.now().difference(lastCheck));
       primaryText = 'Monitoring active';
       secondaryText = 'Last check $formattedTimestamp ($elapsed ago)';
     }
@@ -559,11 +760,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         Row(
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: statusColor,
-            ),
+            Icon(icon, size: 16, color: statusColor),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -646,7 +843,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-              ElevatedButton(
+          ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
                 final minutes = int.parse(controller.text);
@@ -657,7 +854,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 try {
                   final apiClient = context.read<ApiClientProvider>().client;
                   final monitoringService = MonitoringService(apiClient);
-                  final updated = await monitoringService.setMonitoringInterval(seconds);
+                  final updated = await monitoringService.setMonitoringInterval(
+                    seconds,
+                  );
                   backendOk = updated != null;
                 } catch (e) {
                   backendOk = false;

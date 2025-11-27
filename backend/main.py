@@ -5,9 +5,12 @@ import os
 from app.api import monitoring, rules, config, auth
 from app.scheduler import MonitoringScheduler, monitoring_scheduler as monitoring_scheduler_singleton
 from app.core.database import engine
+from app.core.migrations import run_migrations
 from app.models import models
 from app.core.settings import settings
 
+# Ensure legacy tables are migrated to user-scoped versions before creating metadata
+run_migrations(engine)
 models.Base.metadata.create_all(bind=engine)
 
 # Basic logging setup so scheduler messages show up in console/uvicorn logs.

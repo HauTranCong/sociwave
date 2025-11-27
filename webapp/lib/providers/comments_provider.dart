@@ -37,6 +37,7 @@ class CommentsProvider extends ChangeNotifier {
   /// Initialize with config
   void initialize(Config config) {
     _config = config;
+    _fallbackClient.setPageId(config.pageId);
     if (config.useMockData) {
       _mockApiService = MockApiService();
       AppLogger.info('📝 Comments: Using mock API');

@@ -8,6 +8,8 @@ class StorageKeys {
   static const String apiTokenKey = 'api_token'; // Stored in secure storage
   static const String apiVersionKey = 'api_version';
   static const String pageIdKey = 'page_id';
+  static const String managedPagesKey = 'managed_pages';
+  static const String pageNamesKey = 'page_names';
   static const String useMockDataKey = 'use_mock_data';
   
   // Rules

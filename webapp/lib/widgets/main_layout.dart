@@ -9,10 +9,7 @@ import '../core/constants/app_constants.dart';
 class MainLayout extends StatefulWidget {
   final Widget child;
 
-  const MainLayout({
-    super.key,
-    required this.child,
-  });
+  const MainLayout({super.key, required this.child});
 
   @override
   State<MainLayout> createState() => _MainLayoutState();
@@ -36,6 +33,7 @@ class _MainLayoutState extends State<MainLayout> {
           // Left Navigation Bar
           NavigationRail(
             extended: _isExpanded,
+            groupAlignment: 0.0,
             backgroundColor: theme.colorScheme.surface,
             indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
             indicatorShape: RoundedRectangleBorder(
@@ -62,10 +60,6 @@ class _MainLayoutState extends State<MainLayout> {
                 const SizedBox(height: 8),
                 // App Logo/Title
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 16,
-                  ),
                   child: _isExpanded
                       ? Row(
                           children: [
@@ -96,6 +90,7 @@ class _MainLayoutState extends State<MainLayout> {
             trailing: Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const Divider(),
                   const SizedBox(height: 8),
@@ -108,7 +103,10 @@ class _MainLayoutState extends State<MainLayout> {
                           CircleAvatar(
                             backgroundColor: theme.colorScheme.primary,
                             child: Text(
-                              authProvider.username?.substring(0, 1).toUpperCase() ?? 'U',
+                              authProvider.username
+                                      ?.substring(0, 1)
+                                      .toUpperCase() ??
+                                  'U',
                               style: TextStyle(
                                 color: theme.colorScheme.onPrimary,
                                 fontWeight: FontWeight.bold,
@@ -138,7 +136,10 @@ class _MainLayoutState extends State<MainLayout> {
                               CircleAvatar(
                                 backgroundColor: theme.colorScheme.primary,
                                 child: Text(
-                                  authProvider.username?.substring(0, 1).toUpperCase() ?? 'U',
+                                  authProvider.username
+                                          ?.substring(0, 1)
+                                          .toUpperCase() ??
+                                      'U',
                                   style: TextStyle(
                                     color: theme.colorScheme.onPrimary,
                                     fontWeight: FontWeight.bold,
@@ -185,32 +186,38 @@ class _MainLayoutState extends State<MainLayout> {
                                   IconButton(
                                     icon: const Icon(Icons.brightness_auto),
                                     tooltip: 'System Theme',
-                                    color: themeProvider.themeMode ==
+                                    color:
+                                        themeProvider.themeMode ==
                                             ThemeMode.system
                                         ? theme.colorScheme.primary
                                         : null,
-                                    onPressed: () => themeProvider
-                                        .setThemeMode(ThemeMode.system),
+                                    onPressed: () => themeProvider.setThemeMode(
+                                      ThemeMode.system,
+                                    ),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.light_mode),
                                     tooltip: 'Light Theme',
-                                    color: themeProvider.themeMode ==
+                                    color:
+                                        themeProvider.themeMode ==
                                             ThemeMode.light
                                         ? theme.colorScheme.primary
                                         : null,
-                                    onPressed: () => themeProvider
-                                        .setThemeMode(ThemeMode.light),
+                                    onPressed: () => themeProvider.setThemeMode(
+                                      ThemeMode.light,
+                                    ),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.dark_mode),
                                     tooltip: 'Dark Theme',
                                     color:
-                                        themeProvider.themeMode == ThemeMode.dark
-                                            ? theme.colorScheme.primary
-                                            : null,
-                                    onPressed: () => themeProvider
-                                        .setThemeMode(ThemeMode.dark),
+                                        themeProvider.themeMode ==
+                                            ThemeMode.dark
+                                        ? theme.colorScheme.primary
+                                        : null,
+                                    onPressed: () => themeProvider.setThemeMode(
+                                      ThemeMode.dark,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -253,9 +260,7 @@ class _MainLayoutState extends State<MainLayout> {
           const VerticalDivider(thickness: 1, width: 1),
 
           // Main Content Area
-          Expanded(
-            child: widget.child,
-          ),
+          Expanded(child: widget.child),
         ],
       ),
     );

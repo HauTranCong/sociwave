@@ -9,6 +9,7 @@ import '../../domain/models/reel.dart';
 class ApiClient {
   final Dio _dio;
   void Function()? _onUnauthorized;
+  String? _pageId;
 
   /// Base URL for the FastAPI backend.
   /// `API_BASE_URL` can be supplied at build time via `--dart-define`.
@@ -17,7 +18,7 @@ class ApiClient {
     defaultValue: 'http://127.0.0.1:8000/api',
   );
 
-  ApiClient({String? authToken, String? baseUrlOverride})
+  ApiClient({String? authToken, String? baseUrlOverride, String? pageId})
     : _dio = Dio(
         BaseOptions(
           baseUrl: baseUrlOverride ?? _compileTimeBaseUrl,
@@ -29,6 +30,7 @@ class ApiClient {
     if (authToken != null && authToken.isNotEmpty) {
       _dio.options.headers['Authorization'] = 'Bearer $authToken';
     }
+    setPageId(pageId);
 
     // Diagnostic interceptor: log outgoing requests and Authorization header
     _dio.interceptors.add(
@@ -64,6 +66,18 @@ class ApiClient {
       _dio.options.headers.remove('Authorization');
     }
   }
+
+  /// Update the scoped page ID used when talking to the backend.
+  void setPageId(String? pageId) {
+    final normalized = pageId?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      _pageId = null;
+    } else {
+      _pageId = normalized;
+    }
+  }
+
+  String? get pageId => _pageId;
 
   /// Register a callback to be invoked when a 401 Unauthorized is observed
   void setOnUnauthorized(void Function()? handler) {
@@ -101,7 +115,10 @@ class ApiClient {
   /// Triggers the monitoring cycle on the backend.
   Future<void> triggerMonitoring() async {
     try {
-      await _dio.post('/trigger-monitoring');
+      await _dio.post(
+        '/trigger-monitoring',
+        queryParameters: _withPageScope(),
+      );
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
@@ -110,7 +127,10 @@ class ApiClient {
   /// Get whether server-side monitoring is enabled
   Future<bool> getMonitoringEnabled() async {
     try {
-      final response = await _dio.get('/monitoring/enabled');
+      final response = await _dio.get(
+        '/monitoring/enabled',
+        queryParameters: _withPageScope(),
+      );
       final data = response.data;
       if (data is Map && data.containsKey('enabled')) {
         return data['enabled'] as bool;
@@ -126,7 +146,7 @@ class ApiClient {
     try {
       final response = await _dio.post(
         '/monitoring/enabled',
-        queryParameters: {'enabled': enabled},
+        queryParameters: _withPageScope({'enabled': enabled}),
       );
       final data = response.data;
       if (data is Map && data.containsKey('enabled')) {
@@ -141,7 +161,10 @@ class ApiClient {
   /// Get monitoring interval in seconds
   Future<int> getMonitoringInterval() async {
     try {
-      final response = await _dio.get('/monitoring/interval');
+      final response = await _dio.get(
+        '/monitoring/interval',
+        queryParameters: _withPageScope(),
+      );
       final data = response.data;
       if (data is Map && data.containsKey('interval_seconds')) {
         return (data['interval_seconds'] as num).toInt();
@@ -157,7 +180,7 @@ class ApiClient {
     try {
       final response = await _dio.post(
         '/monitoring/interval',
-        queryParameters: {'interval_seconds': seconds},
+        queryParameters: _withPageScope({'interval_seconds': seconds}),
       );
       final data = response.data;
       if (data is Map && data.containsKey('interval_seconds')) {
@@ -172,7 +195,10 @@ class ApiClient {
   /// Fetch reels from the backend.
   Future<List<Reel>> getReels() async {
     try {
-      final response = await _dio.get('/reels');
+      final response = await _dio.get(
+        '/reels',
+        queryParameters: _withPageScope(),
+      );
       final data = response.data;
 
       if (data is List) {
@@ -191,7 +217,10 @@ class ApiClient {
   /// Fetch comments for a specific reel from the backend.
   Future<List<Comment>> getComments(String reelId) async {
     try {
-      final response = await _dio.get('/comments/$reelId');
+      final response = await _dio.get(
+        '/comments/$reelId',
+        queryParameters: _withPageScope(),
+      );
       final data = response.data;
 
       if (data is List) {
@@ -212,7 +241,10 @@ class ApiClient {
     try {
       await _dio.post(
         '/reply',
-        queryParameters: {'comment_id': commentId, 'message': message},
+        queryParameters: _withPageScope({
+          'comment_id': commentId,
+          'message': message,
+        }),
       );
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -222,7 +254,10 @@ class ApiClient {
   /// Fetch configuration from the backend and map it into the front-end Config model.
   Future<Config> getConfig() async {
     try {
-      final response = await _dio.get('/config');
+      final response = await _dio.get(
+        '/config',
+        queryParameters: _withPageScope(),
+      );
       final data = response.data as Map<String, dynamic>;
 
       return Config(
@@ -234,6 +269,62 @@ class ApiClient {
         commentsLimit: data['commentsLimit'] as int? ?? 100,
         repliesLimit: data['repliesLimit'] as int? ?? 100,
       );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  /// Test connectivity using the backend (uses DB-scoped configuration).
+  Future<bool> testBackendConnection() async {
+    try {
+      final response = await _dio.get(
+        '/test-connection',
+        queryParameters: _withPageScope(),
+      );
+      final data = response.data;
+      if (data is bool) return data;
+      return data == true;
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  /// Remove all configuration and rules for the given page from the backend.
+  Future<void> deletePageData(String pageId) async {
+    try {
+      await _dio.delete(
+        '/config',
+        queryParameters: _withPageScopeFor(pageId),
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  /// Get current page/user profile info (id, name, picture) from the backend.
+  Future<Map<String, dynamic>> getPageProfile([String? pageId]) async {
+    try {
+      final response = await _dio.get(
+        '/me',
+        queryParameters: _withPageScopeFor(pageId ?? _pageId),
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      return {};
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  /// List page_ids that have stored configuration for the current user.
+  Future<List<String>> getPages() async {
+    try {
+      final response = await _dio.get('/config/pages');
+      final data = response.data;
+      if (data is List) {
+        return data.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+      }
+      return [];
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
@@ -252,7 +343,11 @@ class ApiClient {
     };
 
     try {
-      await _dio.post('/config', data: payload);
+      await _dio.post(
+        '/config',
+        data: payload,
+        queryParameters: _withPageScope(),
+      );
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
@@ -264,7 +359,10 @@ class ApiClient {
   /// keyed by object_id for convenient use in the UI.
   Future<Map<String, Rule>> getRules() async {
     try {
-      final response = await _dio.get('/rules');
+      final response = await _dio.get(
+        '/rules',
+        queryParameters: _withPageScope(),
+      );
       final data = response.data;
 
       if (data is List) {
@@ -294,10 +392,34 @@ class ApiClient {
       payload[id] = rule.toJson();
     });
     try {
-      await _dio.post('/rules', data: payload);
+      await _dio.post(
+        '/rules',
+        data: payload,
+        queryParameters: _withPageScope(),
+      );
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
+  }
+
+  Map<String, dynamic> _withPageScope([Map<String, dynamic>? extras]) =>
+      _withPageScopeFor(_pageId, extras);
+
+  Map<String, dynamic> _withPageScopeFor(
+    String? pageId, [
+    Map<String, dynamic>? extras,
+  ]) {
+    final normalized = pageId?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      throw ApiException(
+        'Page ID is required for this request. Please select or add a page in Settings.',
+      );
+    }
+    final params = <String, dynamic>{'page_id': normalized};
+    if (extras != null) {
+      params.addAll(extras);
+    }
+    return params;
   }
 }
 

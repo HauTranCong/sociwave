@@ -1,0 +1,58 @@
+@startuml
+title SociWave Monitoring Flow
+
+actor Admin
+participant "FastAPI API\n(/api endpoints)" as API
+participant "ConfigService\n(SQLAlchemy)" as Config
+participant "MonitorService" as Monitor
+participant "FacebookService\n(Graph API client)" as FB
+participant "APScheduler\n(MonitoringScheduler)" as Scheduler
+participant "Facebook Graph API" as Graph
+
+Admin -> API: POST /api/trigger-monitoring
+API -> Config: load_rules()
+API -> API: queue BackgroundTask\n(monitor_service.perform_monitoring_cycle)
+note right of API
+  Uses FastAPI BackgroundTasks\n  to run monitor cycle async.
+end note
+
+Admin -> API: POST /api/monitoring/interval
+API -> Scheduler: reschedule(interval_seconds)
+
+alt Scheduled run
+  Scheduler -> Config: get_monitoring_enabled()
+  Scheduler -> Config: load_config()
+  Scheduler -> Config: load_rules()
+  Scheduler -> Monitor: perform_monitoring_cycle(rules)
+else Manual trigger
+  API -> Monitor: perform_monitoring_cycle(rules)
+end
+
+group Background monitoring cycle
+  Monitor -> FB: get_reels()
+  FB -> Graph: GET /{page_id}/video_reels
+  Graph --> FB: reels list
+  FB --> Monitor: reels
+
+  loop each reel with enabled rule
+    Monitor -> FB: get_comments(reel.id)
+    FB -> Graph: GET /{reel.id}/comments\nfields=message,from,replies...
+    Graph --> FB: comments (+ replies)
+    FB --> Monitor: comments
+
+    alt page already replied or page-authored comment
+      Monitor -> Monitor: skip reply
+    else matches rule keywords
+      Monitor -> FB: reply_to_comment(comment.id, rule.reply_message)
+      FB -> Graph: POST /{comment_id}/comments
+
+      alt rule has inbox_message
+        Monitor -> FB: send_private_reply(comment.id, inbox_message)
+        FB -> Graph: POST /{page_id}/messages\n(recipient.comment_id)
+      end
+
+      Monitor -> Monitor: mark comment as replied\n(in-process set)
+    end
+  end
+end
+@enduml

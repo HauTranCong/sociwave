@@ -33,6 +33,7 @@ class ReelsProvider extends ChangeNotifier {
 
   /// Initialize with config
   void initialize(Config config) {
+    _fallbackClient.setPageId(config.pageId);
     if (config.useMockData) {
       _mockApiService = MockApiService();
       AppLogger.info('🎬 Reels: Using mock API');
