@@ -39,10 +39,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildStatisticsRow({
     required RulesProvider rulesProvider,
     required ReelsProvider reelsProvider,
-    required ConfigProvider configProvider,
+    ConfigProvider? configProvider,
+    String? pageId,
+    String? pageLabel,
   }) {
-    final pageId = configProvider.config.pageId;
-    final pageLabel = configProvider.pageLabel(pageId);
+    final finalPageId = pageId ?? configProvider?.config.pageId ?? '';
+    final finalPageLabel = pageLabel ?? (configProvider != null ? configProvider.pageLabel(finalPageId) : finalPageId);
 
     return Row(
       children: [
@@ -51,8 +53,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: StatCard(
             icon: Icons.person,
             title: 'Name',
-            value: pageLabel.isNotEmpty ? pageLabel : 'Not set',
-            subtitle: pageId.isNotEmpty ? 'ID: $pageId' : 'No page selected',
+            value: finalPageLabel.isNotEmpty ? finalPageLabel : 'Not set',
+            subtitle: finalPageId.isNotEmpty ? 'ID: $finalPageId' : 'No page selected',
             color: Colors.orange,
           ),
         ),
@@ -124,6 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             itemBuilder: (context, index) {
               final reel = reelsProvider.reels[index];
               return ReelCard(
+                key: ValueKey(reel.id),
                 reel: reel,
                 onTap: () {
                   context.push(
@@ -168,47 +171,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final configProvider = context.read<ConfigProvider>();
-    final reelsProvider = context.read<ReelsProvider>();
-    final commentsProvider = context.read<CommentsProvider>();
-    final rulesProvider = context.read<RulesProvider>();
-
-    // Test API connection if not using mock data
     if (!configProvider.config.useMockData) {
-      await configProvider.testConnection();
-    }
-
-    // Initialize API-dependent providers with config
-    reelsProvider.initialize(configProvider.config);
-    commentsProvider.initialize(configProvider.config);
-
-    await Future.wait([reelsProvider.fetchReels(), rulesProvider.loadRules()]);
-  }
-
-  Future<bool> _switchToPage(String pageId) async {
-    if (_isSwitchingPage) return false;
-    final configProvider = context.read<ConfigProvider>();
-    if (configProvider.selectedPageId == pageId) {
-      return true;
-    }
-
-    setState(() {
-      _isSwitchingPage = true;
-    });
-    try {
-      await configProvider.selectPage(pageId);
-      if (!mounted) return false;
-      await _loadData();
-      return true;
-    } finally {
-      if (mounted) {
-        setState(() => _isSwitchingPage = false);
-      }
+      await configProvider.testAllPagesConnection();
     }
   }
+
+  // Previously there was logic to switch the global selected page. That behavior
+  // has been removed; per-page operations now use explicit per-page APIs.
 
   Future<void> _openPageDetails(String pageId) async {
-    final switched = await _switchToPage(pageId);
-    if (!mounted || !switched) return;
+    // Fetch per-page config and initialize temporary providers for the modal
+    final configProvider = context.read<ConfigProvider>();
+    final reelsProvider = context.read<ReelsProvider>();
+    final rulesProvider = context.read<RulesProvider>();
+    final commentsProvider = context.read<CommentsProvider>();
+    final apiClientProvider = context.read<ApiClientProvider>();
+
+    // Start a background fetch Future which will populate providers.
+    // The modal opens immediately and shows a light-weight loading UI while
+    // this Future completes — this improves perceived responsiveness.
+    final Future<void> fetchFuture = () async {
+      try {
+        final stopwatch = Stopwatch()..start();
+        final pageConfig = await configProvider.getConfigForPage(pageId);
+        if (pageConfig != null) {
+          reelsProvider.initialize(pageConfig);
+          commentsProvider.initialize(pageConfig);
+        }
+
+        final originalPage = apiClientProvider.client.pageId;
+        try {
+          apiClientProvider.setPageId(pageId);
+          await Future.wait([
+            reelsProvider.fetchReels(),
+            rulesProvider.loadRules(),
+          ]);
+        } finally {
+          apiClientProvider.setPageId(originalPage);
+        }
+        stopwatch.stop();
+        debugPrint('[_openPageDetails] fetch completed in ${stopwatch.elapsedMilliseconds}ms for page $pageId');
+      } catch (e, st) {
+        // Log error to help diagnose slow fetches without crashing the UI.
+        debugPrint('[_openPageDetails] fetch error: $e\n$st');
+      }
+    }();
 
     await showModalBottomSheet(
       context: context,
@@ -224,16 +231,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: SingleChildScrollView(
-                child: Consumer3<RulesProvider, ReelsProvider, ConfigProvider>(
-                  builder:
-                      (
+                child: FutureBuilder<void>(
+                  future: fetchFuture,
+                  builder: (context, snapshot) {
+                    // While the fetch is running, show a lightweight loading
+                    // skeleton to give immediate feedback and avoid heavy
+                    // provider-driven rebuilds while data arrives.
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.dashboard_customize,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  // show quick placeholder label while loading
+                                  configProvider.pageLabel(pageId),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          // Small stat placeholders
+                          Row(
+                            children: const [
+                              Expanded(child: SizedBox(height: 64)),
+                              SizedBox(width: 12),
+                              Expanded(child: SizedBox(height: 64)),
+                              SizedBox(width: 12),
+                              Expanded(child: SizedBox(height: 64)),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  SizedBox(height: 10),
+                                  SizedBox(height: 10),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // Reels loading placeholder
+                          const LoadingIndicator(message: 'Loading page...'),
+                        ],
+                      );
+                    }
+
+                    // Once complete, render the full content using Consumers so
+                    // the providers' real state (including any errors) is shown.
+                    return Consumer3<RulesProvider, ReelsProvider, ConfigProvider>(
+                      builder: (
                         context,
                         rulesProvider,
                         reelsProvider,
                         configProvider,
                         _,
                       ) {
-                        final pageId = configProvider.config.pageId;
+                        final label = configProvider.pageLabel(pageId);
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -246,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    configProvider.pageLabel(pageId),
+                                    label,
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium
@@ -264,7 +337,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             _buildStatisticsRow(
                               rulesProvider: rulesProvider,
                               reelsProvider: reelsProvider,
-                              configProvider: configProvider,
+                              pageId: pageId,
+                              pageLabel: label,
                             ),
                             const SizedBox(height: 16),
                             _buildMonitoringSection(margin: EdgeInsets.zero),
@@ -273,6 +347,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                         );
                       },
+                    );
+                  },
                 ),
               ),
             ),
@@ -298,6 +374,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  /// Refresh reels for a specific page (selects the page, then refreshes)
+  Future<void> _refreshPage(String pageId) async {
+    if (_isSwitchingPage) return;
+
+    setState(() {
+      _isSwitchingPage = true;
+    });
+
+    try {
+      final configProvider = context.read<ConfigProvider>();
+      final reelsProvider = context.read<ReelsProvider>();
+
+      // Fetch the page-specific config without changing global selection
+      final pageConfig = await configProvider.getConfigForPage(pageId);
+      if (pageConfig != null) {
+        reelsProvider.initialize(pageConfig);
+        await reelsProvider.refreshReels();
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Loaded ${reelsProvider.reels.length} reels for $pageId'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSwitchingPage = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -307,62 +419,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: const Text('Dashboard'),
         ),
         automaticallyImplyLeading: false,
-        actions: [
-          // Show config status
-          Consumer<ConfigProvider>(
-            builder: (context, config, _) {
-              final isUsingMockData = config.config.useMockData;
-              final isConnected = config.isConnected;
-              final isTestingConnection = config.isTestingConnection;
-
-              // Determine icon and color based on connection status
-              IconData icon;
-              Color color;
-              String tooltip;
-
-              if (isUsingMockData) {
-                icon = Icons.cloud_off;
-                color = Colors.orange;
-                tooltip = 'Using Mock Data';
-              } else if (isTestingConnection) {
-                icon = Icons.cloud_sync;
-                color = Colors.blue;
-                tooltip = 'Testing Connection...';
-              } else if (isConnected) {
-                icon = Icons.cloud_done;
-                color = Colors.green;
-                tooltip = 'Connected: ${config.config.pageId}';
-              } else {
-                icon = Icons.cloud_off;
-                color = Colors.red;
-                tooltip =
-                    'Disconnected: ${config.config.pageId} (API not connected)';
-              }
-
-              return IconButton(
-                icon: Icon(icon, color: color),
-                tooltip: tooltip,
-                onPressed: () => context.go(AppRouter.settings),
-              );
-            },
-          ),
-          // Refresh Button
-          Consumer<ReelsProvider>(
-            builder: (context, reelsProvider, _) {
-              return IconButton(
-                icon: Icon(
-                  Icons.refresh,
-                  color: reelsProvider.isLoading
-                      ? Colors.grey
-                      : Theme.of(context).colorScheme.primary,
-                ),
-                tooltip: 'Refresh All Reels',
-                onPressed: reelsProvider.isLoading ? null : _refreshData,
-              );
-            },
-          ),
-          Padding(padding: const EdgeInsets.only(right: 8)),
-        ],
+        actions: [],
       ),
       body: RefreshIndicator(
         onRefresh: _refreshData,
@@ -373,9 +430,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             // Page selector cards
             SliverToBoxAdapter(child: _buildPageCardsSection()),
-
-            // Prompt to open page details
-            SliverToBoxAdapter(child: _buildPageDetailPrompt()),
 
             // Bottom Spacing
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -455,13 +509,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Pages',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
               if (_isSwitchingPage) const LinearProgressIndicator(minHeight: 2),
               if (_isSwitchingPage) const SizedBox(height: 6),
               ...pages.map(
@@ -477,26 +524,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildPageDetailPrompt() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(
-                Icons.touch_app,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildPageCard(ConfigProvider provider, String pageId) {
     final theme = Theme.of(context);
     final isConfigured = provider.isPageConfigured(pageId);
@@ -508,6 +535,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final iconColor = isConnected ? Colors.green : Colors.grey.withOpacity(0.8);
 
     return Card(
+      key: ValueKey('page_card_$pageId'),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: borderColor, width: 1),
@@ -533,9 +561,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => context.go(AppRouter.settings),
-                    child: const Text('Settings'),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.refresh,
+                            color: Theme.of(context).colorScheme.primary),
+                        tooltip: 'Refresh this page',
+                        onPressed: _isSwitchingPage
+                            ? null
+                            : () => _refreshPage(pageId),
+                      ),
+                      TextButton(
+                        onPressed: () => context.go(
+                          AppRouter.settings,
+                          extra: {'pageId': pageId},
+                        ),
+                        child: const Text('Settings'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -722,10 +766,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final lastError = provider.lastError;
     final lastCheck = provider.lastCheck;
 
-    IconData icon;
-    Color statusColor;
-    String primaryText;
-    String? secondaryText;
+  IconData icon;
+  Color statusColor;
+  String primaryText;
+  String secondaryText;
 
     if (hasRecentError && lastError != null) {
       icon = Icons.error_outline;
@@ -773,17 +817,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        if (secondaryText != null)
-          Padding(
-            padding: const EdgeInsets.only(left: 22, top: 2),
-            child: Text(
-              secondaryText,
-              style: textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
+        Padding(
+          padding: const EdgeInsets.only(left: 22, top: 2),
+          child: Text(
+            secondaryText,
+            style: textTheme.bodySmall?.copyWith(
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
             ),
           ),
+        ),
       ],
     );
   }

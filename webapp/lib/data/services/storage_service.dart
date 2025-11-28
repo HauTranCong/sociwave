@@ -178,36 +178,50 @@ class StorageService {
 
   // ==================== Cached Reels ====================
 
-  /// Cache reels data
-  Future<void> cacheReels(List<Reel> reels) async {
+  /// Cache reels data for an optional page scope
+  Future<void> cacheReels(List<Reel> reels, [String? pageId]) async {
     try {
+      final key = pageId == null || pageId.isEmpty
+          ? StorageKeys.cachedReelsKey
+          : '${StorageKeys.cachedReelsKey}_$pageId';
+      final tsKey = pageId == null || pageId.isEmpty
+          ? StorageKeys.cachedReelsTimestampKey
+          : '${StorageKeys.cachedReelsTimestampKey}_$pageId';
+
       final reelsJson = reels.map((r) => r.toJson()).toList();
-      await _prefs.setString(StorageKeys.cachedReelsKey, jsonEncode(reelsJson));
+      await _prefs.setString(key, jsonEncode(reelsJson));
       await _prefs.setInt(
-        StorageKeys.cachedReelsTimestampKey,
+        tsKey,
         DateTime.now().millisecondsSinceEpoch,
       );
-      AppLogger.info('Cached ${reels.length} reels');
+      AppLogger.info('Cached ${reels.length} reels (page=${pageId ?? '<none>'})');
     } catch (e, stackTrace) {
       AppLogger.error('Failed to cache reels', e, stackTrace);
       rethrow;
     }
   }
 
-  /// Load cached reels
-  Future<List<Reel>?> loadCachedReels() async {
+  /// Load cached reels for an optional page scope
+  Future<List<Reel>?> loadCachedReels([String? pageId]) async {
     try {
-      final json = _prefs.getString(StorageKeys.cachedReelsKey);
+      final key = pageId == null || pageId.isEmpty
+          ? StorageKeys.cachedReelsKey
+          : '${StorageKeys.cachedReelsKey}_$pageId';
+      final tsKey = pageId == null || pageId.isEmpty
+          ? StorageKeys.cachedReelsTimestampKey
+          : '${StorageKeys.cachedReelsTimestampKey}_$pageId';
+
+      final json = _prefs.getString(key);
       if (json == null) {
         return null;
       }
 
-      final timestamp = _prefs.getInt(StorageKeys.cachedReelsTimestampKey);
+      final timestamp = _prefs.getInt(tsKey);
       if (timestamp != null) {
         final cacheAge = DateTime.now().millisecondsSinceEpoch - timestamp;
         // Cache expires after 1 hour
         if (cacheAge > 3600000) {
-          AppLogger.info('Reel cache expired');
+          AppLogger.info('Reel cache expired (page=${pageId ?? '<none>'})');
           return null;
         }
       }
@@ -217,7 +231,7 @@ class StorageService {
           .map((data) => Reel.fromJson(data as Map<String, dynamic>))
           .toList();
 
-      AppLogger.info('Loaded ${reels.length} cached reels');
+      AppLogger.info('Loaded ${reels.length} cached reels (page=${pageId ?? '<none>'})');
       return reels;
     } catch (e, stackTrace) {
       AppLogger.error('Failed to load cached reels', e, stackTrace);

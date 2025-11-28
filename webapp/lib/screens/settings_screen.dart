@@ -30,6 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Config? _lastSyncedConfig;
   bool _isListeningToConfig = false;
   bool _isEditingPage = false;
+  String? _editingPageId;
 
   @override
   void initState() {
@@ -43,10 +44,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _repliesLimitController = TextEditingController();
     _applyConfigToForm(config, silent: true);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       _configProvider.addListener(_handleConfigChanged);
       _isListeningToConfig = true;
+
+      // Safe to access GoRouterState here (after initState completes)
+      final routerState = GoRouterState.of(context);
+      final routeExtra = routerState.extra;
+      if (routeExtra is Map && routeExtra['pageId'] is String) {
+        _editingPageId = (routeExtra['pageId'] as String);
+      }
+
+      // If editing a specific page, load its config into the form
+      if (_editingPageId != null) {
+        final cfg = await _configProvider.getConfigForPage(_editingPageId!);
+        if (cfg != null) {
+          _applyConfigToForm(cfg);
+        } else {
+          _applyConfigToForm(_buildConfigForPage(pageId: _editingPageId!));
+        }
+      }
     });
   }
 
@@ -74,21 +92,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Manage Facebook Pages',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Each page keeps its own access token, API limits, and monitoring settings. Tap a card to edit that page\'s configuration—its status badges are shown on the card itself.',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-        ),
-        const SizedBox(height: 12),
-        const SizedBox(height: 12),
         if (pages.isEmpty)
           Container(
             width: double.infinity,
@@ -305,7 +308,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      await _configProvider.selectPage(pageId);
+      final config = await _configProvider.getConfigForPage(pageId);
+      if (config != null) {
+        _applyConfigToForm(config);
+        _editingPageId = pageId;
+      } else {
+        _applyConfigToForm(_buildConfigForPage(pageId: pageId));
+        _editingPageId = pageId;
+      }
     } finally {
       if (!mounted) return;
       setState(() {
@@ -338,7 +348,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       // Immediately show the scoped config in the form, then persist to backend
       _applyConfigToForm(configForPage);
-      final success = await _configProvider.addPageWithConfig(configForPage);
+      final success = await _configProvider.saveConfigForPage(configForPage);
       if (!success) {
         final error = _configProvider.error ?? 'Failed to save configuration';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -432,14 +442,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!_isEditingPage) return;
     setState(() {
       _isEditingPage = false;
+      _editingPageId = null;
     });
   }
 
   Widget _buildConfigCard(BuildContext context, ConfigProvider provider) {
     final theme = Theme.of(context);
-    final pageId = provider.selectedPageId ?? 'Unknown Page';
+    final pageId = _editingPageId ?? provider.selectedPageId ?? 'Unknown Page';
     final pageLabel = provider.pageLabel(pageId);
-    final isConnected = provider.isConnected;
+    final isConnected = provider.isPageConnected(pageId);
     final statusColor = isConnected ? Colors.green : Colors.orangeAccent;
 
     return Card(
@@ -738,21 +749,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isLoading = true);
 
     final configProvider = _configProvider;
-    final selectedPageId = configProvider.selectedPageId;
-    if (selectedPageId == null || selectedPageId.isEmpty) {
+    final pageId = _editingPageId ?? configProvider.selectedPageId;
+    if (pageId == null || pageId.isEmpty) {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please add and select a Facebook Page before saving.'),
+          content: Text('Please add a Facebook Page before saving.'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    final config = _buildConfigForPage(pageId: selectedPageId);
+    final config = _buildConfigForPage(pageId: pageId);
 
-    final success = await configProvider.saveConfig(config);
+    final success = await configProvider.saveConfigForPage(config);
 
     if (!mounted) return;
 
@@ -803,35 +814,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header Card
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.settings_outlined,
-                          size: 48,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Facebook API Configuration',
-                          style: Theme.of(context).textTheme.titleLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Configure your Facebook API credentials to start monitoring comments',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: Colors.grey[600]),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
                 _isEditingPage
                     ? _buildConfigCard(context, configProvider)
                     : _buildPageManager(context, configProvider),

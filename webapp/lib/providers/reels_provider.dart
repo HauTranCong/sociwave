@@ -51,7 +51,8 @@ class ReelsProvider extends ChangeNotifier {
 
       // Try to load from cache first if not forcing refresh
       if (!forceRefresh) {
-        final cachedReels = await _storage.loadCachedReels();
+        final pageId = _apiClientProvider?.client.pageId ?? _fallbackClient.pageId;
+        final cachedReels = await _storage.loadCachedReels(pageId);
         if (cachedReels != null && cachedReels.isNotEmpty) {
           _reels = await _attachRuleStatus(cachedReels);
           _lastFetchTime = DateTime.now();
@@ -74,7 +75,9 @@ class ReelsProvider extends ChangeNotifier {
       _lastFetchTime = DateTime.now();
 
       // Cache the reels
-      await _storage.cacheReels(fetchedReels);
+      // Cache the reels scoped to the current page
+      final pageId = _apiClientProvider?.client.pageId ?? _fallbackClient.pageId;
+      await _storage.cacheReels(fetchedReels, pageId);
 
       AppLogger.info('🎬 Loaded ${_reels.length} reels from API');
       notifyListeners();

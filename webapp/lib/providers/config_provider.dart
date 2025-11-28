@@ -56,8 +56,8 @@ class ConfigProvider extends ChangeNotifier {
       return;
     }
     if (hasSelectedPage) {
-      await loadConfig();
-      await testConnection();
+  await loadConfig();
+  await testAllPagesConnection();
     } else {
       notifyListeners();
     }
@@ -240,6 +240,66 @@ class ConfigProvider extends ChangeNotifier {
       }
       notifyListeners();
       return false;
+    } finally {
+      _isTestingConnection = false;
+      notifyListeners();
+    }
+  }
+
+  /// Test connection for all managed pages and update per-page status map.
+  ///
+  /// This iterates over the managed pages and calls the backend /test-connection
+  /// endpoint for each page (temporarily setting the ApiClient page scope) so
+  /// the UI can show per-page connection badges on the Dashboard.
+  Future<void> testAllPagesConnection() async {
+    if (_config.useMockData) {
+      for (final pageId in _managedPages) {
+        final normalized = _normalizePageId(pageId);
+        if (normalized != null && normalized.isNotEmpty) {
+          _pageConnectionStatus[normalized] = true;
+        }
+      }
+      // keep _isConnected consistent with selected page
+      _isConnected = _selectedPageId != null
+          ? (_pageConnectionStatus[_selectedPageId!] ?? false)
+          : false;
+      notifyListeners();
+      return;
+    }
+
+    // Avoid concurrent runs
+    if (_isTestingConnection) return;
+
+    _isTestingConnection = true;
+    notifyListeners();
+    final apiClient = _getApiClient();
+    final originalPage = apiClient.pageId;
+
+    try {
+      for (final pageId in _managedPages) {
+        final normalized = _normalizePageId(pageId);
+        if (normalized == null) continue;
+
+        try {
+          // Temporarily scope the ApiClient to this page and test
+          apiClient.setPageId(normalized);
+          final connected = await apiClient.testBackendConnection();
+          _pageConnectionStatus[normalized] = connected;
+        } catch (e) {
+          // On any error, mark as not connected but continue
+          _pageConnectionStatus[normalized] = false;
+        }
+      }
+
+      // Restore original client page scope
+      apiClient.setPageId(originalPage);
+
+      // Keep the global _isConnected flag in sync with selected page
+      _isConnected = _selectedPageId != null
+          ? (_pageConnectionStatus[_selectedPageId!] ?? false)
+          : false;
+
+      notifyListeners();
     } finally {
       _isTestingConnection = false;
       notifyListeners();
@@ -457,12 +517,76 @@ class ConfigProvider extends ChangeNotifier {
       if (backendPages.isEmpty) return;
       _managedPages = backendPages;
       await _storage.saveManagedPages(_managedPages);
-      await _updateSelectedPage(_managedPages.first);
+      // Do not auto-select a page here. Keep per-page state isolated and
+      // allow the UI to fetch/save per-page configs explicitly.
       _hydratedFromBackend = true;
-      await loadConfig();
-      await testConnection();
+      // Refresh per-page connection statuses so dashboard badges are accurate
+      await testAllPagesConnection();
     } catch (e, stackTrace) {
       AppLogger.error('Failed to hydrate pages from backend', e, stackTrace);
+    }
+  }
+
+  /// Execute an async action with the ApiClient temporarily scoped to a pageId
+  /// then restore the original page scope. Useful for per-page operations.
+  Future<T> _withPageScope<T>(String? pageId, Future<T> Function() action) async {
+    final apiClient = _getApiClient();
+    final original = apiClient.pageId;
+    try {
+      apiClient.setPageId(pageId);
+      return await action();
+    } finally {
+      apiClient.setPageId(original);
+    }
+  }
+
+  /// Get configuration for a specific page without changing the global selected page.
+  Future<Config?> getConfigForPage(String pageId) async {
+    final normalized = _normalizePageId(pageId);
+    if (normalized == null) return null;
+    try {
+      final config = await _withPageScope(normalized, () => _getApiClient().getConfig());
+      // Track page and its config status locally
+      await _ensurePageTracked(normalized);
+      _pageConfigStatus[normalized] = config.isValid;
+      await _refreshPageName(normalized);
+      notifyListeners();
+      return config;
+    } catch (e, stackTrace) {
+      AppLogger.error('Failed to load config for page $normalized', e, stackTrace);
+      return null;
+    }
+  }
+
+  /// Save configuration for a specific page without changing the global selected page.
+  Future<bool> saveConfigForPage(Config config) async {
+    final normalized = _normalizePageId(config.pageId);
+    if (normalized == null) {
+      _setError('Page ID cannot be empty');
+      return false;
+    }
+
+    final configToSave = config.copyWith(pageId: normalized);
+    _setLoading(true);
+    try {
+      _clearError();
+      await _ensurePageTracked(normalized);
+      _pageConfigStatus[normalized] = configToSave.isValid;
+      _pageConnectionStatus[normalized] = false;
+
+      // Persist to backend scoped to the page, but do not change global selection.
+      await _withPageScope(normalized, () => _getApiClient().saveConfig(configToSave));
+
+      await _refreshPageName(normalized);
+      await _storage.saveManagedPages(_managedPages);
+      notifyListeners();
+      return true;
+    } catch (e, stackTrace) {
+      _setError('Failed to save config: $e');
+      AppLogger.error('Failed to save config for page $normalized', e, stackTrace);
+      return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
