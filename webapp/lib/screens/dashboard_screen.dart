@@ -26,6 +26,8 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isSwitchingPage = false;
+  bool _isPageLoading = false;
+  String? _selectedPageId;
 
   @override
   void initState() {
@@ -81,7 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildReelsSection(ReelsProvider reelsProvider) {
+  Widget _buildReelsSection(ReelsProvider reelsProvider, {BuildContext? navContext}) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,28 +127,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final reel = reelsProvider.reels[index];
-              return ReelCard(
-                key: ValueKey(reel.id),
-                reel: reel,
-                onTap: () {
-                  context.push(
-                    AppRouter.comments,
-                    extra: {
-                      'reelId': reel.id,
-                      'reelDescription': reel.description,
-                    },
-                  );
-                },
-                onEditRule: () {
-                  context.push(
-                    AppRouter.ruleEditor,
-                    extra: {
-                      'reelId': reel.id,
-                      'reelDescription': reel.description,
-                    },
-                  );
-                },
-              );
+                return ReelCard(
+                  key: ValueKey(reel.id),
+                  reel: reel,
+                  onTap: () {
+                    final parentCtx = navContext ?? context;
+                    // Close the bottom sheet then navigate from the parent
+                    // context in a safe, post-frame callback.
+                    Navigator.of(context).maybePop().then((_) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        try {
+                          GoRouter.of(parentCtx).push(
+                            AppRouter.comments,
+                            extra: {
+                              'reelId': reel.id,
+                              'reelDescription': reel.description,
+                            },
+                          );
+                        } catch (e, st) {
+                          debugPrint('navigation after pop failed: $e\n$st');
+                        }
+                      });
+                    });
+                  },
+                  onEditRule: () {
+                    final parentCtx = navContext ?? context;
+                    Navigator.of(context).maybePop().then((_) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        try {
+                          GoRouter.of(parentCtx).push(
+                            AppRouter.ruleEditor,
+                            extra: {
+                              'reelId': reel.id,
+                              'reelDescription': reel.description,
+                            },
+                          );
+                        } catch (e, st) {
+                          debugPrint('navigation after pop failed: $e\n$st');
+                        }
+                      });
+                    });
+                  },
+                );
             },
           ),
       ],
@@ -179,185 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Previously there was logic to switch the global selected page. That behavior
   // has been removed; per-page operations now use explicit per-page APIs.
 
-  Future<void> _openPageDetails(String pageId) async {
-    // Fetch per-page config and initialize temporary providers for the modal
-    final configProvider = context.read<ConfigProvider>();
-    final reelsProvider = context.read<ReelsProvider>();
-    final rulesProvider = context.read<RulesProvider>();
-    final commentsProvider = context.read<CommentsProvider>();
-    final apiClientProvider = context.read<ApiClientProvider>();
-
-    // Start a background fetch Future which will populate providers.
-    // The modal opens immediately and shows a light-weight loading UI while
-    // this Future completes — this improves perceived responsiveness.
-    final Future<void> fetchFuture = () async {
-      try {
-        final stopwatch = Stopwatch()..start();
-        final pageConfig = await configProvider.getConfigForPage(pageId);
-        if (pageConfig != null) {
-          reelsProvider.initialize(pageConfig);
-          commentsProvider.initialize(pageConfig);
-        }
-
-        final originalPage = apiClientProvider.client.pageId;
-        try {
-          apiClientProvider.setPageId(pageId);
-          await Future.wait([
-            reelsProvider.fetchReels(),
-            rulesProvider.loadRules(),
-          ]);
-        } finally {
-          apiClientProvider.setPageId(originalPage);
-        }
-        stopwatch.stop();
-        debugPrint('[_openPageDetails] fetch completed in ${stopwatch.elapsedMilliseconds}ms for page $pageId');
-      } catch (e, st) {
-        // Log error to help diagnose slow fetches without crashing the UI.
-        debugPrint('[_openPageDetails] fetch error: $e\n$st');
-      }
-    }();
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).cardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: FractionallySizedBox(
-            heightFactor: 0.92,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: SingleChildScrollView(
-                child: FutureBuilder<void>(
-                  future: fetchFuture,
-                  builder: (context, snapshot) {
-                    // While the fetch is running, show a lightweight loading
-                    // skeleton to give immediate feedback and avoid heavy
-                    // provider-driven rebuilds while data arrives.
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.dashboard_customize,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  // show quick placeholder label while loading
-                                  configProvider.pageLabel(pageId),
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () => Navigator.of(context).pop(),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          // Small stat placeholders
-                          Row(
-                            children: const [
-                              Expanded(child: SizedBox(height: 64)),
-                              SizedBox(width: 12),
-                              Expanded(child: SizedBox(height: 64)),
-                              SizedBox(width: 12),
-                              Expanded(child: SizedBox(height: 64)),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const [
-                                  SizedBox(height: 10),
-                                  SizedBox(height: 10),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          // Reels loading placeholder
-                          const LoadingIndicator(message: 'Loading page...'),
-                        ],
-                      );
-                    }
-
-                    // Once complete, render the full content using Consumers so
-                    // the providers' real state (including any errors) is shown.
-                    return Consumer3<RulesProvider, ReelsProvider, ConfigProvider>(
-                      builder: (
-                        context,
-                        rulesProvider,
-                        reelsProvider,
-                        configProvider,
-                        _,
-                      ) {
-                        final label = configProvider.pageLabel(pageId);
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.dashboard_customize,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    label,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.close),
-                                  onPressed: () => Navigator.of(context).pop(),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            _buildStatisticsRow(
-                              rulesProvider: rulesProvider,
-                              reelsProvider: reelsProvider,
-                              pageId: pageId,
-                              pageLabel: label,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildMonitoringSection(margin: EdgeInsets.zero),
-                            const SizedBox(height: 16),
-                            _buildReelsSection(reelsProvider),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
+  
   Future<void> _refreshData() async {
     final reelsProvider = context.read<ReelsProvider>();
     await reelsProvider.refreshReels();
@@ -428,8 +272,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // API Configuration Banner (if using mock data)
             SliverToBoxAdapter(child: _buildConfigBanner()),
 
-            // Page selector cards
-            SliverToBoxAdapter(child: _buildPageCardsSection()),
+            // Page selector cards or inline detail
+            SliverToBoxAdapter(
+              child: _selectedPageId == null
+                  ? _buildPageCardsSection()
+                  : _buildPageDetailSection(_selectedPageId!),
+            ),
 
             // Bottom Spacing
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -524,6 +372,161 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildPageDetailSection(String pageId) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: _isPageLoading ? 0.6 : 1,
+        child: SizedBox(
+          width: double.infinity,
+          child: Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(
+                color: Colors.grey.withOpacity(0.25),
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        tooltip: 'Back to pages',
+                        onPressed: _isPageLoading ? null : _exitPageDetail,
+                      ),
+                      const SizedBox(width: 8),
+                      Consumer<ConfigProvider>(
+                        builder: (context, configProvider, _) {
+                          final label = configProvider.pageLabel(pageId);
+                          return Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  label,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  'ID: $pageId',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(color: Colors.grey[600]),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (_isPageLoading) ...[
+                    const LoadingIndicator(message: 'Loading page...'),
+                  ] else
+                    Consumer3<RulesProvider, ReelsProvider, ConfigProvider>(
+                      builder: (
+                        context,
+                        rulesProvider,
+                        reelsProvider,
+                        configProvider,
+                        _,
+                      ) {
+                        final label = configProvider.pageLabel(pageId);
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildStatisticsRow(
+                              rulesProvider: rulesProvider,
+                              reelsProvider: reelsProvider,
+                              pageId: pageId,
+                              pageLabel: label,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildMonitoringSection(margin: EdgeInsets.zero),
+                            const SizedBox(height: 16),
+                            _buildReelsSection(reelsProvider),
+                          ],
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPageDetailsInline(String pageId) async {
+    if (_isSwitchingPage || _isPageLoading) return;
+
+    setState(() {
+      _selectedPageId = pageId;
+      _isPageLoading = true;
+    });
+
+    final configProvider = context.read<ConfigProvider>();
+    final reelsProvider = context.read<ReelsProvider>();
+    final rulesProvider = context.read<RulesProvider>();
+    final commentsProvider = context.read<CommentsProvider>();
+    final apiClientProvider = context.read<ApiClientProvider>();
+
+    try {
+      final pageConfig = await configProvider.getConfigForPage(pageId);
+      if (pageConfig != null) {
+        reelsProvider.initialize(pageConfig);
+        commentsProvider.initialize(pageConfig);
+      }
+
+      final originalPage = apiClientProvider.client.pageId;
+      try {
+        apiClientProvider.setPageId(pageId);
+        await Future.wait([
+          reelsProvider.fetchReels(),
+          rulesProvider.loadRules(),
+        ]);
+      } finally {
+        apiClientProvider.setPageId(originalPage);
+      }
+    } catch (e, st) {
+      debugPrint('[_openPageDetailsInline] fetch error: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to load page details'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isPageLoading = false;
+      });
+    }
+  }
+
+  void _exitPageDetail() {
+    setState(() {
+      _selectedPageId = null;
+      _isPageLoading = false;
+    });
+  }
+
   Widget _buildPageCard(ConfigProvider provider, String pageId) {
     final theme = Theme.of(context);
     final isConfigured = provider.isPageConfigured(pageId);
@@ -534,82 +537,89 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
     final iconColor = isConnected ? Colors.green : Colors.grey.withOpacity(0.8);
 
-    return Card(
-      key: ValueKey('page_card_$pageId'),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: borderColor, width: 1),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: _isSwitchingPage ? null : () => _openPageDetails(pageId),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: _isSwitchingPage ? 0.6 : 1,
+      child: SizedBox(
+        width: double.infinity,
+        child: Card(
+          key: ValueKey('page_card_$pageId'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: borderColor, width: 1),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: _isSwitchingPage ? null : () => _openPageDetailsInline(pageId),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.badge_outlined, color: iconColor),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      pageLabel,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
                   Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: Icon(Icons.refresh,
-                            color: Theme.of(context).colorScheme.primary),
-                        tooltip: 'Refresh this page',
-                        onPressed: _isSwitchingPage
-                            ? null
-                            : () => _refreshPage(pageId),
-                      ),
-                      TextButton(
-                        onPressed: () => context.go(
-                          AppRouter.settings,
-                          extra: {'pageId': pageId},
+                      Icon(Icons.badge_outlined, color: iconColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          pageLabel,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        child: const Text('Settings'),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.refresh,
+                                color: Theme.of(context).colorScheme.primary),
+                            tooltip: 'Refresh this page',
+                            onPressed: _isSwitchingPage
+                                ? null
+                                : () => _refreshPage(pageId),
+                          ),
+                          TextButton(
+                            onPressed: () => context.go(
+                              AppRouter.settings,
+                              extra: {'pageId': pageId},
+                            ),
+                            child: const Text('Settings'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Chip(
+                        label: Text(isConfigured ? 'Configured' : 'Missing config'),
+                        backgroundColor: isConfigured
+                            ? Colors.green.withOpacity(0.15)
+                            : Colors.orangeAccent.withOpacity(0.15),
+                        labelStyle: theme.textTheme.bodySmall?.copyWith(
+                          color: isConfigured ? Colors.green : Colors.orangeAccent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Chip(
+                        label: Text(isConnected ? 'Connected' : 'Not Connected'),
+                        backgroundColor: isConnected
+                            ? Colors.green.withOpacity(0.15)
+                            : Colors.orangeAccent.withOpacity(0.15),
+                        labelStyle: theme.textTheme.bodySmall?.copyWith(
+                          color: isConnected ? Colors.green : Colors.orangeAccent,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Chip(
-                    label: Text(isConfigured ? 'Configured' : 'Missing config'),
-                    backgroundColor: isConfigured
-                        ? Colors.green.withOpacity(0.15)
-                        : Colors.orangeAccent.withOpacity(0.15),
-                    labelStyle: theme.textTheme.bodySmall?.copyWith(
-                      color: isConfigured ? Colors.green : Colors.orangeAccent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Chip(
-                    label: Text(isConnected ? 'Connected' : 'Not Connected'),
-                    backgroundColor: isConnected
-                        ? Colors.green.withOpacity(0.15)
-                        : Colors.orangeAccent.withOpacity(0.15),
-                    labelStyle: theme.textTheme.bodySmall?.copyWith(
-                      color: isConnected ? Colors.green : Colors.orangeAccent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -5,6 +5,8 @@ import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../core/constants/app_constants.dart';
 
+enum _UserMenuAction { systemTheme, lightTheme, darkTheme, logout }
+
 /// Main layout with left navigation bar
 class MainLayout extends StatefulWidget {
   final Widget child;
@@ -16,14 +18,12 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  bool _isExpanded = false;
   // removed session-expired modal behavior
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final authProvider = context.watch<AuthProvider>();
-    // No modal shown here; session-expired UI handled elsewhere or by route changes
     final themeProvider = context.watch<ThemeProvider>();
     final currentLocation = GoRouterState.of(context).uri.toString();
 
@@ -32,8 +32,8 @@ class _MainLayoutState extends State<MainLayout> {
         children: [
           // Left Navigation Bar
           NavigationRail(
-            extended: _isExpanded,
-            groupAlignment: 0.0,
+            // Keep destinations pinned toward the top and user/menu at bottom.
+            groupAlignment: -1.0,
             backgroundColor: theme.colorScheme.surface,
             indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
             indicatorShape: RoundedRectangleBorder(
@@ -55,201 +55,127 @@ class _MainLayoutState extends State<MainLayout> {
             onDestinationSelected: (index) {
               _navigateToIndex(context, index);
             },
-            leading: Column(
-              children: [
-                const SizedBox(height: 8),
-                // App Logo/Title
-                Container(
-                  child: _isExpanded
-                      ? Row(
-                          children: [
-                            Icon(
-                              Icons.waves,
-                              size: 32,
-                              color: theme.colorScheme.primary,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              AppConstants.appName,
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        )
-                      : Icon(
-                          Icons.waves,
-                          size: 32,
-                          color: theme.colorScheme.primary,
-                        ),
-                ),
-                const Divider(),
-              ],
-            ),
-            trailing: Expanded(
+            leading: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  // User Info - Collapsed
-                  if (!_isExpanded)
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Column(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: theme.colorScheme.primary,
-                            child: Text(
-                              authProvider.username
-                                      ?.substring(0, 1)
-                                      .toUpperCase() ??
-                                  'U',
-                              style: TextStyle(
-                                color: theme.colorScheme.onPrimary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          IconButton(
-                            icon: const Icon(Icons.logout),
-                            tooltip: 'Logout',
-                            onPressed: () => _handleLogout(context),
-                          ),
-                        ],
-                      ),
+                  Icon(
+                    Icons.waves,
+                    size: 32,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    AppConstants.appName,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.primary,
                     ),
-                  // User Info - Expanded
-                  if (_isExpanded)
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: theme.colorScheme.primary,
-                                child: Text(
-                                  authProvider.username
-                                          ?.substring(0, 1)
-                                          .toUpperCase() ??
-                                      'U',
-                                  style: TextStyle(
-                                    color: theme.colorScheme.onPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    authProvider.username ?? 'User',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          // Logout Button
-                          OutlinedButton.icon(
-                            onPressed: () => _handleLogout(context),
-                            icon: const Icon(Icons.logout, size: 18),
-                            label: const Text('Logout'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          // Theme Toggle Buttons
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.brightness_auto),
-                                    tooltip: 'System Theme',
-                                    color:
-                                        themeProvider.themeMode ==
-                                            ThemeMode.system
-                                        ? theme.colorScheme.primary
-                                        : null,
-                                    onPressed: () => themeProvider.setThemeMode(
-                                      ThemeMode.system,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.light_mode),
-                                    tooltip: 'Light Theme',
-                                    color:
-                                        themeProvider.themeMode ==
-                                            ThemeMode.light
-                                        ? theme.colorScheme.primary
-                                        : null,
-                                    onPressed: () => themeProvider.setThemeMode(
-                                      ThemeMode.light,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.dark_mode),
-                                    tooltip: 'Dark Theme',
-                                    color:
-                                        themeProvider.themeMode ==
-                                            ThemeMode.dark
-                                        ? theme.colorScheme.primary
-                                        : null,
-                                    onPressed: () => themeProvider.setThemeMode(
-                                      ThemeMode.dark,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  // Toggle Button
-                  IconButton(
-                    icon: Icon(
-                      _isExpanded ? Icons.chevron_left : Icons.chevron_right,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _isExpanded = !_isExpanded;
-                      });
-                    },
-                    tooltip: _isExpanded ? 'Collapse' : 'Expand',
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
+                  const Divider(),
                 ],
+              ),
+            ),
+            trailing: Expanded( 
+              child: Align(
+                alignment: Alignment.bottomCenter,    
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      PopupMenuButton<_UserMenuAction>(
+                        tooltip: 'Theme & logout',
+                        position: PopupMenuPosition.over,
+                        onSelected: (action) => _handleMenuSelection(
+                          action,
+                          themeProvider,
+                          context,
+                        ),
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: _UserMenuAction.systemTheme,
+                            child: _buildMenuRow(
+                              theme,
+                              icon: Icons.brightness_auto,
+                              label: 'System theme',
+                              selected: themeProvider.themeMode == ThemeMode.system,
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: _UserMenuAction.lightTheme,
+                            child: _buildMenuRow(
+                              theme,
+                              icon: Icons.light_mode,
+                              label: 'Light theme',
+                              selected: themeProvider.themeMode == ThemeMode.light,
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: _UserMenuAction.darkTheme,
+                            child: _buildMenuRow(
+                              theme,
+                              icon: Icons.dark_mode,
+                              label: 'Dark theme',
+                              selected: themeProvider.themeMode == ThemeMode.dark,
+                            ),
+                          ),
+                          const PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: _UserMenuAction.logout,
+                            child: _buildMenuRow(
+                              theme,
+                              icon: Icons.logout,
+                              label: 'Logout',
+                            ),
+                          ),
+                        ],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: theme.colorScheme.primary,
+                              child: Text(
+                                authProvider.username
+                                        ?.substring(0, 1)
+                                        .toUpperCase() ??
+                                    'U',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              authProvider.username ?? 'User',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              ),
+                            const SizedBox(height: 8),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                ),
               ),
             ),
             destinations: const [
               NavigationRailDestination(
-                icon: Icon(Icons.dashboard_outlined),
+                icon: Tooltip(message: 'Dashboard', child: Icon(Icons.dashboard_outlined)),
                 selectedIcon: Icon(Icons.dashboard),
                 label: Text('DASHBOARD', style: TextStyle(fontSize: 14)),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
+                icon: Tooltip(message: 'Settings', child: Icon(Icons.settings_outlined)),
                 selectedIcon: Icon(Icons.settings),
                 label: Text('SETTINGS', style: TextStyle(fontSize: 14)),
               ),
@@ -308,5 +234,56 @@ class _MainLayoutState extends State<MainLayout> {
         context.go('/login');
       }
     }
+  }
+
+  Future<void> _handleMenuSelection(
+    _UserMenuAction action,
+    ThemeProvider themeProvider,
+    BuildContext context,
+  ) async {
+    switch (action) {
+      case _UserMenuAction.systemTheme:
+        themeProvider.setThemeMode(ThemeMode.system);
+        break;
+      case _UserMenuAction.lightTheme:
+        themeProvider.setThemeMode(ThemeMode.light);
+        break;
+      case _UserMenuAction.darkTheme:
+        themeProvider.setThemeMode(ThemeMode.dark);
+        break;
+      case _UserMenuAction.logout:
+        await _handleLogout(context);
+        break;
+    }
+  }
+
+  Widget _buildMenuRow(
+    ThemeData theme, {
+    required IconData icon,
+    required String label,
+    bool selected = false,
+  }) {
+    final highlight = selected ? theme.colorScheme.primary : null;
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: highlight),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: highlight,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+        if (selected)
+          Icon(
+            Icons.check,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
+      ],
+    );
   }
 }
