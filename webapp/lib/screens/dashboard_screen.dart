@@ -91,6 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildReelsSection(
     ReelsProvider reelsProvider, {
+    required String pageId,
     BuildContext? navContext,
   }) {
     final theme = Theme.of(context);
@@ -140,6 +141,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 key: ValueKey(reel.id),
                 reel: reel,
                 onTap: () {
+                  // Ensure API client is scoped to the current page before navigating
+                  context.read<ApiClientProvider>().setPageId(pageId);
+
                   final parentCtx = navContext ?? context;
                   // Close the bottom sheet then navigate from the parent
                   // context in a safe, post-frame callback.
@@ -151,6 +155,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           extra: {
                             'reelId': reel.id,
                             'reelDescription': reel.description,
+                            'pageId': pageId,
                           },
                         );
                       } catch (e, st) {
@@ -169,6 +174,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           extra: {
                             'reelId': reel.id,
                             'reelDescription': reel.description,
+                            'pageId': pageId,
                           },
                         );
                       } catch (e, st) {
@@ -223,8 +229,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // has been removed; per-page operations now use explicit per-page APIs.
 
   Future<void> _refreshData() async {
+    final apiClientProvider = context.read<ApiClientProvider>();
+    final pageId = _selectedPageId ?? apiClientProvider.client.pageId;
+    if (pageId == null || pageId.isEmpty) {
+      return;
+    }
+
     final reelsProvider = context.read<ReelsProvider>();
-    await reelsProvider.refreshReels();
+    await _withPageScope(pageId, () => reelsProvider.refreshReels());
 
     if (!mounted) return;
 
@@ -429,7 +441,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   margin: EdgeInsets.zero,
                                 ),
                                 const SizedBox(height: 16),
-                                _buildReelsSection(reelsProvider),
+                                _buildReelsSection(
+                                  reelsProvider,
+                                  pageId: pageId,
+                                ),
                               ],
                             );
                           },
@@ -455,7 +470,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final reelsProvider = context.read<ReelsProvider>();
     final rulesProvider = context.read<RulesProvider>();
     final commentsProvider = context.read<CommentsProvider>();
-    final apiClientProvider = context.read<ApiClientProvider>();
 
     try {
       final pageConfig = await configProvider.getConfigForPage(pageId);
@@ -464,16 +478,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         commentsProvider.initialize(pageConfig);
       }
 
-      final originalPage = apiClientProvider.client.pageId;
-      try {
-        apiClientProvider.setPageId(pageId);
-        await Future.wait([
-          reelsProvider.fetchReels(),
+      await _withPageScope(
+        pageId,
+        () => Future.wait([
+          reelsProvider.fetchReels(forceRefresh: true),
           rulesProvider.loadRules(),
-        ]);
-      } finally {
-        apiClientProvider.setPageId(originalPage);
-      }
+        ]),
+      );
     } catch (e, st) {
       debugPrint('[_openPageDetailsInline] fetch error: $e\n$st');
       if (mounted) {
@@ -497,6 +508,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _selectedPageId = null;
       _isPageLoading = false;
     });
+  }
+
+  /// Run an async action scoped to a specific page on the shared ApiClient.
+  Future<T> _withPageScope<T>(
+    String pageId,
+    Future<T> Function() action,
+  ) async {
+    final apiClientProvider = context.read<ApiClientProvider>();
+    final originalPage = apiClientProvider.client.pageId;
+    try {
+      apiClientProvider.setPageId(pageId);
+      return await action();
+    } finally {
+      apiClientProvider.setPageId(originalPage);
+    }
   }
 
   Widget _buildPageCard(ConfigProvider provider, String pageId) {

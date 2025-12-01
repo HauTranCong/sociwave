@@ -49,20 +49,7 @@ class ReelsProvider extends ChangeNotifier {
       _setLoading(true);
       _clearError();
 
-      // Try to load from cache first if not forcing refresh
-      if (!forceRefresh) {
-        final pageId = _apiClientProvider?.client.pageId ?? _fallbackClient.pageId;
-        final cachedReels = await _storage.loadCachedReels(pageId);
-        if (cachedReels != null && cachedReels.isNotEmpty) {
-          _reels = await _attachRuleStatus(cachedReels);
-          _lastFetchTime = DateTime.now();
-          AppLogger.info('🎬 Loaded ${_reels.length} reels (cached)');
-          notifyListeners();
-          return;
-        }
-      }
-
-      // Fetch from API
+      // Always fetch from API to ensure the selected page gets fresh data
       List<Reel> fetchedReels;
       if (_mockApiService != null) {
         fetchedReels = await _mockApiService!.getReels();
@@ -74,12 +61,8 @@ class ReelsProvider extends ChangeNotifier {
       _reels = await _attachRuleStatus(fetchedReels);
       _lastFetchTime = DateTime.now();
 
-      // Cache the reels
-      // Cache the reels scoped to the current page
-      final pageId = _apiClientProvider?.client.pageId ?? _fallbackClient.pageId;
-      await _storage.cacheReels(fetchedReels, pageId);
-
-      AppLogger.info('🎬 Loaded ${_reels.length} reels from API');
+      final logSuffix = forceRefresh ? ' (forced refresh)' : '';
+      AppLogger.info('🎬 Loaded ${_reels.length} reels from API$logSuffix');
       notifyListeners();
     } catch (e, stackTrace) {
       // Provide clearer, actionable messages for known HTTP errors
@@ -96,11 +79,15 @@ class ReelsProvider extends ChangeNotifier {
 
       if (status == 400) {
         // Backend returns 400 when Facebook config is incomplete
-        _setError('Cannot load reels: Facebook configuration is incomplete.\nPlease set accessToken and pageId in Settings.');
+        _setError(
+          'Cannot load reels: Facebook configuration is incomplete.\nPlease set accessToken and pageId in Settings.',
+        );
       } else if (status == 401) {
         _setError('Unauthorized: Please login again.');
       } else if (status != null && status >= 500) {
-        _setError('Server error when fetching reels (status $status). Try again later.');
+        _setError(
+          'Server error when fetching reels (status $status). Try again later.',
+        );
       } else if (message != null) {
         _setError('Failed to fetch reels: $message');
       } else {

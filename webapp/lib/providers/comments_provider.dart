@@ -32,12 +32,14 @@ class CommentsProvider extends ChangeNotifier {
   String? get error => _error;
   String? get currentReelId => _currentReelId;
   int get currentCommentCount => currentComments.length;
-  int get newCommentCount => currentComments.where((c) => !c.hasReplied).length;
 
   /// Initialize with config
   void initialize(Config config) {
     _config = config;
     _fallbackClient.setPageId(config.pageId);
+    // Ensure the shared ApiClient is scoped to this page so comment calls
+    // don't fail with a missing pageId.
+    _apiClientProvider?.setPageId(config.pageId);
     if (config.useMockData) {
       _mockApiService = MockApiService();
       AppLogger.info('📝 Comments: Using mock API');
@@ -61,12 +63,15 @@ class CommentsProvider extends ChangeNotifier {
         return;
       }
 
+      final client = _resolveClientForPage();
+      if (client == null) return;
+
       // Fetch from API
       List<Comment> fetchedComments;
       if (_mockApiService != null) {
         fetchedComments = await _mockApiService!.getComments(reelId);
       } else {
-        fetchedComments = await _getApiClient().getComments(reelId);
+        fetchedComments = await client.getComments(reelId);
       }
 
       // Mark replied status based on nested replies (check if page has already replied)
@@ -100,11 +105,14 @@ class CommentsProvider extends ChangeNotifier {
       _setLoading(true);
       _clearError();
 
+      final client = _resolveClientForPage();
+      if (client == null) return false;
+
       // Post reply via API
       if (_mockApiService != null) {
         await _mockApiService!.replyToComment(commentId, message);
       } else {
-        await _getApiClient().replyToComment(commentId, message);
+        await client.replyToComment(commentId, message);
       }
 
       // Mark as replied
@@ -138,21 +146,6 @@ class CommentsProvider extends ChangeNotifier {
     return _commentsByReel[reelId] ?? [];
   }
 
-  /// Get new (unreplied) comments for a reel
-  List<Comment> getNewCommentsForReel(String reelId) {
-    final comments = _commentsByReel[reelId] ?? [];
-    return comments.where((c) => !c.hasReplied).toList();
-  }
-
-  /// Get all new comments across all reels
-  List<Comment> getAllNewComments() {
-    final allComments = <Comment>[];
-    for (final comments in _commentsByReel.values) {
-      allComments.addAll(comments.where((c) => !c.hasReplied));
-    }
-    return allComments;
-  }
-
   /// Clear comments for a specific reel
   void clearCommentsForReel(String reelId) {
     _commentsByReel.remove(reelId);
@@ -177,14 +170,6 @@ class CommentsProvider extends ChangeNotifier {
     );
   }
 
-  /// Get total new comment count across all reels
-  int get totalNewCommentCount {
-    return _commentsByReel.values.fold(
-      0,
-      (sum, comments) => sum + comments.where((c) => !c.hasReplied).length,
-    );
-  }
-
   // Private helpers
   void _setLoading(bool loading) {
     _isLoading = loading;
@@ -201,6 +186,38 @@ class CommentsProvider extends ChangeNotifier {
       _error = null;
       notifyListeners();
     }
+  }
+
+  /// Update the current page scope without overwriting other config fields.
+  void setPageScope(String pageId) {
+    _config = (_config ?? Config.initial()).copyWith(pageId: pageId);
+    _fallbackClient.setPageId(pageId);
+    _apiClientProvider?.setPageId(pageId);
+  }
+
+  /// Ensure we have a client scoped to the current page.
+  /// Returns null and sets a friendly error if pageId is missing.
+  ApiClient? _resolveClientForPage() {
+    final sharedClient = _apiClientProvider?.client;
+    final sharedPageId = sharedClient?.pageId?.trim();
+    // Prefer the page scoped in config (current page view), fallback to shared client scope.
+    final configPageId = _config?.pageId.trim();
+    final pageId = (configPageId != null && configPageId.isNotEmpty)
+        ? configPageId
+        : sharedPageId;
+
+    if (pageId == null || pageId.isEmpty) {
+      _setError('Please select a page before loading comments.');
+      return null;
+    }
+
+    if (_apiClientProvider != null) {
+      _apiClientProvider!.setPageId(pageId);
+      return _apiClientProvider!.client;
+    }
+
+    _fallbackClient.setPageId(pageId);
+    return _fallbackClient;
   }
 
   /// Allow wiring the ApiClientProvider after construction (used by ProxyProvider)

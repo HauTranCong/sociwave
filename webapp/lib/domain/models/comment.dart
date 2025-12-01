@@ -8,18 +8,19 @@ part 'comment.g.dart';
 class CommentAuthor extends Equatable {
   /// Author's Facebook user ID
   final String id;
-  
+
   /// Author's display name
   final String name;
 
-  const CommentAuthor({
-    required this.id,
-    required this.name,
-  });
+  const CommentAuthor({required this.id, required this.name});
 
   /// Create CommentAuthor from JSON
-  factory CommentAuthor.fromJson(Map<String, dynamic> json) =>
-      _$CommentAuthorFromJson(json);
+  factory CommentAuthor.fromJson(Map<String, dynamic> json) {
+    final rawName = json['name']?.toString().trim();
+    final name = rawName == null || rawName.isEmpty ? 'Anonymous' : rawName;
+    final id = json['id']?.toString() ?? 'unknown';
+    return CommentAuthor(id: id, name: name);
+  }
 
   /// Convert CommentAuthor to JSON
   Map<String, dynamic> toJson() => _$CommentAuthorToJson(this);
@@ -40,31 +41,31 @@ class CommentAuthor extends Equatable {
 }
 
 /// Comment on a Facebook post/reel
-/// 
+///
 /// Corresponds to Facebook Graph API comments endpoint response
 @JsonSerializable()
 class Comment extends Equatable {
   /// Unique comment ID from Facebook
   final String id;
-  
+
   /// Comment text/message
   final String message;
-  
+
   /// Comment author information (nullable for deleted users/comments)
   final CommentAuthor? from;
-  
+
   /// When the comment was created
   @JsonKey(name: 'created_time')
   final DateTime createdTime;
-  
+
   /// When the comment was last updated (optional)
   @JsonKey(name: 'updated_time')
   final DateTime? updatedTime;
-  
+
   /// Nested replies to this comment
   @JsonKey(includeFromJson: false, includeToJson: false)
   final List<Comment>? replies;
-  
+
   /// Whether we have already replied to this comment (computed, not from API)
   @JsonKey(includeFromJson: false, includeToJson: false)
   final bool hasReplied;
@@ -86,7 +87,7 @@ class Comment extends Equatable {
     if (json['from'] != null) {
       author = CommentAuthor.fromJson(json['from'] as Map<String, dynamic>);
     }
-    
+
     // Handle nested replies (Graph API or backend shape)
     List<Comment>? replies;
     if (json['comments'] != null) {
@@ -94,18 +95,25 @@ class Comment extends Equatable {
       if (commentsData['data'] != null) {
         final repliesData = commentsData['data'] as List<dynamic>;
         replies = repliesData
-            .map((replyJson) => Comment.fromJson(replyJson as Map<String, dynamic>))
-            .where((reply) => reply.from != null) // Filter out deleted user replies
+            .map(
+              (replyJson) =>
+                  Comment.fromJson(replyJson as Map<String, dynamic>),
+            )
+            .where(
+              (reply) => reply.from != null,
+            ) // Filter out deleted user replies
             .toList();
       }
     } else if (json['replies'] != null) {
       final repliesData = json['replies'] as List<dynamic>;
       replies = repliesData
-          .map((replyJson) => Comment.fromJson(replyJson as Map<String, dynamic>))
+          .map(
+            (replyJson) => Comment.fromJson(replyJson as Map<String, dynamic>),
+          )
           .where((reply) => reply.from != null)
           .toList();
     }
-    
+
     return Comment(
       id: json['id'] as String,
       message: json['message'] as String? ?? '[Comment deleted]',
@@ -151,9 +159,7 @@ class Comment extends Equatable {
   /// Get truncated message for list display
   String get shortMessage {
     if (message.isEmpty) return '(No message)';
-    return message.length > 100
-        ? '${message.substring(0, 100)}...'
-        : message;
+    return message.length > 100 ? '${message.substring(0, 100)}...' : message;
   }
 
   /// Get message word count
@@ -180,13 +186,17 @@ class Comment extends Equatable {
   String toString() {
     return 'Comment(id: $id, from: ${from?.name ?? "[Deleted User]"}, hasReplied: $hasReplied)';
   }
-  
+
   /// Get author name with fallback for deleted users
-  String get authorName => from?.name ?? '[Deleted User]';
-  
+  String get authorName {
+    final name = from?.name.trim();
+    if (name == null || name.isEmpty) return 'Anonymous';
+    return name;
+  }
+
   /// Get author ID with fallback for deleted users
   String get authorId => from?.id ?? 'unknown';
-  
+
   /// Check if the page has already replied to this comment
   /// Returns true if any reply in the nested replies is from the specified pageId
   bool hasPageReplied(String pageId) {

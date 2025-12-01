@@ -98,6 +98,7 @@ class AppRouter {
                   child: CommentsScreen(
                     reelId: extra?['reelId'] as String? ?? '',
                     reelDescription: extra?['reelDescription'] as String? ?? '',
+                    pageId: extra?['pageId'] as String?,
                   ),
                 );
               },

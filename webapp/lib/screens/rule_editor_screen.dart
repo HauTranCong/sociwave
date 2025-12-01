@@ -11,11 +11,7 @@ class RuleEditorScreen extends StatefulWidget {
   final String? reelId;
   final String? reelDescription;
 
-  const RuleEditorScreen({
-    super.key,
-    this.reelId,
-    this.reelDescription,
-  });
+  const RuleEditorScreen({super.key, this.reelId, this.reelDescription});
 
   @override
   State<RuleEditorScreen> createState() => _RuleEditorScreenState();
@@ -168,11 +164,9 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
         enabled: false,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Rule deleted'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Rule deleted')));
 
       context.pop();
     } else {
@@ -225,9 +219,8 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
                         children: [
                           Text(
                             'Reel',
-                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(color: Colors.grey[600]),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -248,7 +241,8 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Keywords',
                     hintText: 'hello, hi, thanks (comma-separated)',
-                    helperText: 'Enter keywords to match. Use "." to match all comments.',
+                    helperText:
+                        'Enter keywords to match. Use "." to match all comments.',
                     prefixIcon: Icon(Icons.label),
                   ),
                   maxLines: 2,
@@ -289,13 +283,16 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Private Reply (Optional)',
                     hintText: 'Send a private message to the commenter...',
-                    helperText: 'This private message will be sent to the user\'s Messenger after replying',
+                    helperText:
+                        'This private message will be sent to the user\'s Messenger after replying',
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
                   maxLines: 4,
                   validator: (value) {
                     // Optional field - no validation required
-                    if (value != null && value.trim().isNotEmpty && value.trim().length < 3) {
+                    if (value != null &&
+                        value.trim().isNotEmpty &&
+                        value.trim().length < 3) {
                       return 'Private reply is too short';
                     }
                     return null;
@@ -307,7 +304,9 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
                 Card(
                   child: SwitchListTile(
                     title: const Text('Enable Auto-Reply'),
-                    subtitle: const Text('Automatically reply to matching comments'),
+                    subtitle: const Text(
+                      'Automatically reply to matching comments',
+                    ),
                     value: _enabled,
                     onChanged: (value) {
                       setState(() => _enabled = value);
