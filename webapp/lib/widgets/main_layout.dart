@@ -73,7 +73,6 @@ class _MainLayoutState extends State<MainLayout> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
                   const Divider(),
                 ],
               ),
@@ -229,10 +228,12 @@ class _MainLayoutState extends State<MainLayout> {
     );
 
     if (confirmed == true && context.mounted) {
-      await context.read<AuthProvider>().logout();
-      if (context.mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!context.mounted) return;
+        await context.read<AuthProvider>().logout();
+        if (!context.mounted) return;
         context.go('/login');
-      }
+      });
     }
   }
 

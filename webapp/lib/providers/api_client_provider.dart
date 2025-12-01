@@ -19,7 +19,12 @@ class ApiClientProvider extends ChangeNotifier {
     } catch (_) {
       _recreateClient();
     }
-    notifyListeners();
+    // Defer notifications so we don't call notifyListeners synchronously
+    // during the widget build phase which would cause "setState() or
+    // markNeedsBuild() called during build" exceptions when consumers are
+    // being constructed. Use addPostFrameCallback to ensure the notification
+    // runs after the current frame has finished building.
+    WidgetsBinding.instance.addPostFrameCallback((_) => notifyListeners());
   }
 
   /// Update the page scope for all API requests
@@ -30,7 +35,8 @@ class ApiClientProvider extends ChangeNotifier {
     } catch (_) {
       _recreateClient();
     }
-    notifyListeners();
+    // Defer notification for the same reason as setAuthToken.
+    WidgetsBinding.instance.addPostFrameCallback((_) => notifyListeners());
   }
 
   /// Register a global onUnauthorized handler (propagates to client)

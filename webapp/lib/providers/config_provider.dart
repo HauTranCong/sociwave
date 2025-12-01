@@ -517,8 +517,22 @@ class ConfigProvider extends ChangeNotifier {
       if (backendPages.isEmpty) return;
       _managedPages = backendPages;
       await _storage.saveManagedPages(_managedPages);
+
       // Do not auto-select a page here. Keep per-page state isolated and
-      // allow the UI to fetch/save per-page configs explicitly.
+      // fetch per-page configs so the dashboard can show accurate "Configured"
+      // badges on first render. We intentionally don't switch the global
+      // selected page — use per-page scoped APIs.
+      for (final pageId in _managedPages) {
+        try {
+          // Use the provider API which will scope the ApiClient and update
+          // _pageConfigStatus and page names.
+          await getConfigForPage(pageId);
+        } catch (e) {
+          AppLogger.warning('Failed to hydrate config for $pageId: $e');
+          // continue with other pages
+        }
+      }
+
       _hydratedFromBackend = true;
       // Refresh per-page connection statuses so dashboard badges are accurate
       await testAllPagesConnection();

@@ -195,6 +195,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final configProvider = context.read<ConfigProvider>();
     if (!configProvider.config.useMockData) {
       await configProvider.testAllPagesConnection();
+
+      // Ensure per-page configuration state is loaded at startup so the
+      // dashboard can show correct "Configured" badges without requiring
+      // the user to open a page. Fetch configs sequentially to avoid
+      // overwhelming the backend on slow connections.
+      for (final pageId in configProvider.managedPages) {
+        try {
+          await configProvider.getConfigForPage(pageId);
+        } catch (e) {
+          // ignore individual page failures — connection status is still useful
+        }
+      }
     }
   }
 
@@ -216,42 +228,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         duration: const Duration(seconds: 2),
       ),
     );
-  }
-
-  /// Refresh reels for a specific page (selects the page, then refreshes)
-  Future<void> _refreshPage(String pageId) async {
-    if (_isSwitchingPage) return;
-
-    setState(() {
-      _isSwitchingPage = true;
-    });
-
-    try {
-      final configProvider = context.read<ConfigProvider>();
-      final reelsProvider = context.read<ReelsProvider>();
-
-      // Fetch the page-specific config without changing global selection
-      final pageConfig = await configProvider.getConfigForPage(pageId);
-      if (pageConfig != null) {
-        reelsProvider.initialize(pageConfig);
-        await reelsProvider.refreshReels();
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Loaded ${reelsProvider.reels.length} reels for $pageId'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSwitchingPage = false;
-        });
-      }
-    }
   }
 
   @override
@@ -572,15 +548,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            icon: Icon(Icons.refresh,
-                                color: Theme.of(context).colorScheme.primary),
-                            tooltip: 'Refresh this page',
-                            onPressed: _isSwitchingPage
-                                ? null
-                                : () => _refreshPage(pageId),
-                          ),
-                          TextButton(
+                          TextButton( 
                             onPressed: () => context.go(
                               AppRouter.settings,
                               extra: {'pageId': pageId},

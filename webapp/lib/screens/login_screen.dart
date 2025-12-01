@@ -36,6 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (!mounted) return;
     setState(() {
       _errorMessage = null;
     });
@@ -43,16 +44,29 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = context.read<AuthProvider>();
     bool success = false;
 
-    // If env credentials are provided, allow a local test login using them
-    success = await authProvider.login(
-      _usernameController.text.trim(),
-      _passwordController.text,
-    );
+    try {
+      // If env credentials are provided, allow a local test login using them
+      success = await authProvider.login(
+        _usernameController.text.trim(),
+        _passwordController.text,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Login error: ${e.toString()}';
+      });
+      return;
+    }
 
+    if (!mounted) return;
     if (success) {
-      // Navigation will be handled by router's redirect
-      context.go('/dashboard');
+      // Defer navigation to avoid possible "called during build" interactions
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.go('/dashboard');
+      });
     } else {
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Invalid credentials. Please try again.';
       });
