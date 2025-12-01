@@ -53,6 +53,15 @@ class MonitorProvider extends ChangeNotifier {
         return;
       }
 
+      // Avoid hitting backend until a page is selected; requests require page scope
+      final currentPageId = _apiClientProvider?.client.pageId;
+      if (currentPageId == null || currentPageId.isEmpty) {
+        _loadLocalStatusOnly();
+        _isInitialized = true;
+        notifyListeners();
+        return;
+      }
+
       _isSyncingBackend = true;
       final monitoringService = MonitoringService(
         _apiClientProvider?.client ?? ApiClient(),

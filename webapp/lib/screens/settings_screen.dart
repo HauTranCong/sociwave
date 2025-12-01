@@ -83,6 +83,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _handleConfigChanged() {
     final config = _configProvider.config;
+    // Avoid overwriting an in-flight edit for a different page
+    if (_isEditingPage &&
+        _editingPageId != null &&
+        _editingPageId != config.pageId) {
+      return;
+    }
     if (_lastSyncedConfig == config) return;
     _applyConfigToForm(config);
   }
@@ -259,7 +265,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             borderRadius: BorderRadius.circular(18),
             onTap: _isLoading ? null : _handleAddPage,
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -800,13 +806,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return LoadingOverlay(
       isLoading: _isLoading,
       child: Scaffold(
-        appBar: AppBar(
-          title: Align(
-            alignment: Alignment.centerLeft,
-            child: const Text('Settings'),
-          ),
-          automaticallyImplyLeading: false,
-        ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Form(

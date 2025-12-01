@@ -19,166 +19,214 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   // removed session-expired modal behavior
+  static const double _compactWidthBreakpoint = 760;
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final isCompact = width < _compactWidthBreakpoint;
     final theme = Theme.of(context);
     final authProvider = context.watch<AuthProvider>();
     final themeProvider = context.watch<ThemeProvider>();
     final currentLocation = GoRouterState.of(context).uri.toString();
+    final selectedIndex = _getSelectedIndex(currentLocation);
+
+    if (isCompact) {
+      return Scaffold(
+        appBar: AppBar(
+          centerTitle: false,
+          titleSpacing: 16,
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.waves, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                AppConstants.appName,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              Spacer(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 0, 8),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _buildUserMenu(
+                    theme: theme,
+                    authProvider: authProvider,
+                    themeProvider: themeProvider,
+                    context: context,
+                    child: CircleAvatar(
+                      backgroundColor: theme.colorScheme.primary,
+                      child: Text(
+                        authProvider.username?.substring(0, 1).toUpperCase() ??
+                            'U',
+                        style: TextStyle(
+                          color: theme.colorScheme.onPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: Column(children: [Expanded(child: widget.child)]),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) => _navigateToIndex(context, index),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+              tooltip: "",
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings),
+              label: 'Settings',
+              tooltip: "",
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       body: Row(
         children: [
           // Left Navigation Bar
-          NavigationRail(
-            // Keep destinations pinned toward the top and user/menu at bottom.
-            groupAlignment: -1.0,
-            backgroundColor: theme.colorScheme.surface,
-            indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
-            indicatorShape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+          Theme(
+            data: theme.copyWith(
+              // Remove default ink ripple/hover overlays that draw odd rectangles
+              // and let the custom square handle its own hover fill.
+              colorScheme: theme.colorScheme.copyWith(
+                primary: theme.colorScheme.primary.withAlpha(0),
+              ),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              splashFactory: NoSplash.splashFactory,
+              navigationRailTheme: theme.navigationRailTheme.copyWith(),
             ),
-            selectedIconTheme: IconThemeData(
-              color: theme.colorScheme.primary,
-              size: 28,
-            ),
-            unselectedIconTheme: IconThemeData(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
-            ),
-            selectedLabelTextStyle: theme.textTheme.labelLarge!.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
-            ),
-            unselectedLabelTextStyle: theme.textTheme.labelLarge,
-            selectedIndex: _getSelectedIndex(currentLocation),
-            onDestinationSelected: (index) {
-              _navigateToIndex(context, index);
-            },
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.waves,
-                    size: 32,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    AppConstants.appName,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+            child: NavigationRail(
+              // Keep destinations pinned toward the top and user/menu at bottom.
+              groupAlignment: -1.0,
+              backgroundColor: theme.colorScheme.surface,
+              // Hide default indicator; we draw our own square highlight
+              indicatorColor: Colors.transparent,
+              useIndicator: false,
+              selectedIconTheme: IconThemeData(
+                color: theme.colorScheme.primary,
+                size: 28,
+              ),
+              unselectedIconTheme: IconThemeData(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+              selectedLabelTextStyle: theme.textTheme.labelLarge!.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
+              unselectedLabelTextStyle: theme.textTheme.labelLarge,
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (index) {
+                _navigateToIndex(context, index);
+              },
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.waves,
+                      size: 32,
                       color: theme.colorScheme.primary,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const Divider(),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      AppConstants.appName,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.primary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const Divider(),
+                  ],
+                ),
               ),
-            ),
-            trailing: Expanded( 
-              child: Align(
-                alignment: Alignment.bottomCenter,    
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      const Divider(),
-                      const SizedBox(height: 8),
-                      PopupMenuButton<_UserMenuAction>(
-                        tooltip: 'Theme & logout',
-                        position: PopupMenuPosition.over,
-                        onSelected: (action) => _handleMenuSelection(
-                          action,
-                          themeProvider,
-                          context,
-                        ),
-                        itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: _UserMenuAction.systemTheme,
-                            child: _buildMenuRow(
-                              theme,
-                              icon: Icons.brightness_auto,
-                              label: 'System theme',
-                              selected: themeProvider.themeMode == ThemeMode.system,
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: _UserMenuAction.lightTheme,
-                            child: _buildMenuRow(
-                              theme,
-                              icon: Icons.light_mode,
-                              label: 'Light theme',
-                              selected: themeProvider.themeMode == ThemeMode.light,
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: _UserMenuAction.darkTheme,
-                            child: _buildMenuRow(
-                              theme,
-                              icon: Icons.dark_mode,
-                              label: 'Dark theme',
-                              selected: themeProvider.themeMode == ThemeMode.dark,
-                            ),
-                          ),
-                          const PopupMenuDivider(),
-                          PopupMenuItem(
-                            value: _UserMenuAction.logout,
-                            child: _buildMenuRow(
-                              theme,
-                              icon: Icons.logout,
-                              label: 'Logout',
-                            ),
-                          ),
-                        ],
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: theme.colorScheme.primary,
-                              child: Text(
-                                authProvider.username
-                                        ?.substring(0, 1)
-                                        .toUpperCase() ??
-                                    'U',
-                                style: TextStyle(
-                                  color: theme.colorScheme.onPrimary,
-                                  fontWeight: FontWeight.bold,
+              trailing: Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        _buildUserMenu(
+                          theme: theme,
+                          authProvider: authProvider,
+                          themeProvider: themeProvider,
+                          context: context,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: theme.colorScheme.primary,
+                                child: Text(
+                                  authProvider.username
+                                          ?.substring(0, 1)
+                                          .toUpperCase() ??
+                                      'U',
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              authProvider.username ?? 'User',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
+                              const SizedBox(height: 6),
+                              Text(
+                                authProvider.username ?? 'User',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
-                              ),
-                            const SizedBox(height: 8),
+                              const SizedBox(height: 8),
                             ],
                           ),
                         ),
                       ],
                     ),
+                  ),
                 ),
               ),
+              destinations: [
+                _buildDestination(
+                  theme: theme,
+                  icon: Icons.dashboard_outlined,
+                  selectedIcon: Icons.dashboard,
+                  label: 'DASHBOARD',
+                  selected: selectedIndex == 0,
+                  tooltip: 'Dashboard',
+                ),
+                _buildDestination(
+                  theme: theme,
+                  icon: Icons.settings_outlined,
+                  selectedIcon: Icons.settings,
+                  label: 'SETTINGS',
+                  selected: selectedIndex == 1,
+                  tooltip: 'Settings',
+                ),
+              ],
             ),
-            destinations: const [
-              NavigationRailDestination(
-                icon: Tooltip(message: 'Dashboard', child: Icon(Icons.dashboard_outlined)),
-                selectedIcon: Icon(Icons.dashboard),
-                label: Text('DASHBOARD', style: TextStyle(fontSize: 14)),
-              ),
-              NavigationRailDestination(
-                icon: Tooltip(message: 'Settings', child: Icon(Icons.settings_outlined)),
-                selectedIcon: Icon(Icons.settings),
-                label: Text('SETTINGS', style: TextStyle(fontSize: 14)),
-              ),
-            ],
           ),
 
           // Vertical Divider
@@ -279,12 +327,139 @@ class _MainLayoutState extends State<MainLayout> {
           ),
         ),
         if (selected)
-          Icon(
-            Icons.check,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
+          Icon(Icons.check, size: 16, color: theme.colorScheme.primary),
       ],
+    );
+  }
+
+  Widget _buildUserMenu({
+    required ThemeData theme,
+    required AuthProvider authProvider,
+    required ThemeProvider themeProvider,
+    required BuildContext context,
+    required Widget child,
+  }) {
+    return PopupMenuButton<_UserMenuAction>(
+      tooltip: 'Theme & logout',
+      position: PopupMenuPosition.over,
+      onSelected: (action) =>
+          _handleMenuSelection(action, themeProvider, context),
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _UserMenuAction.systemTheme,
+          child: _buildMenuRow(
+            theme,
+            icon: Icons.brightness_auto,
+            label: 'System theme',
+            selected: themeProvider.themeMode == ThemeMode.system,
+          ),
+        ),
+        PopupMenuItem(
+          value: _UserMenuAction.lightTheme,
+          child: _buildMenuRow(
+            theme,
+            icon: Icons.light_mode,
+            label: 'Light theme',
+            selected: themeProvider.themeMode == ThemeMode.light,
+          ),
+        ),
+        PopupMenuItem(
+          value: _UserMenuAction.darkTheme,
+          child: _buildMenuRow(
+            theme,
+            icon: Icons.dark_mode,
+            label: 'Dark theme',
+            selected: themeProvider.themeMode == ThemeMode.dark,
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: _UserMenuAction.logout,
+          child: _buildMenuRow(theme, icon: Icons.logout, label: 'Logout'),
+        ),
+      ],
+      child: child,
+    );
+  }
+
+  NavigationRailDestination _buildDestination({
+    required ThemeData theme,
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+    required bool selected,
+    String? tooltip,
+  }) {
+    final text = Text(label, style: const TextStyle(fontSize: 14));
+    final baseIcon = _NavigationSquareIcon(
+      icon: icon,
+      theme: theme,
+      selected: false,
+    );
+    final activeIcon = _NavigationSquareIcon(
+      icon: selectedIcon,
+      theme: theme,
+      selected: true,
+    );
+
+    return NavigationRailDestination(
+      icon: tooltip != null
+          ? Tooltip(message: tooltip, child: baseIcon)
+          : baseIcon,
+      selectedIcon: tooltip != null
+          ? Tooltip(message: tooltip, child: activeIcon)
+          : activeIcon,
+      label: text,
+    );
+  }
+}
+
+class _NavigationSquareIcon extends StatefulWidget {
+  const _NavigationSquareIcon({
+    required this.icon,
+    required this.theme,
+    required this.selected,
+  });
+
+  final IconData icon;
+  final ThemeData theme;
+  final bool selected;
+
+  @override
+  State<_NavigationSquareIcon> createState() => _NavigationSquareIconState();
+}
+
+class _NavigationSquareIconState extends State<_NavigationSquareIcon> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor = widget.selected
+        ? widget.theme.colorScheme.primary
+        : widget.theme.colorScheme.onSurface.withOpacity(0.7);
+
+    final baseBackground = widget.selected
+        ? widget.theme.colorScheme.primary.withOpacity(0.18)
+        : widget.theme.colorScheme.onSurface.withOpacity(0.08);
+    final hoverBackground = widget.selected
+        ? widget.theme.colorScheme.primary.withOpacity(0.24)
+        : widget.theme.colorScheme.onSurface.withOpacity(0.12);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: _hovering ? hoverBackground : baseBackground,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Icon(widget.icon, color: iconColor, size: 24),
+      ),
     );
   }
 }

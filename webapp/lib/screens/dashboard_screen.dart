@@ -46,7 +46,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String? pageLabel,
   }) {
     final finalPageId = pageId ?? configProvider?.config.pageId ?? '';
-    final finalPageLabel = pageLabel ?? (configProvider != null ? configProvider.pageLabel(finalPageId) : finalPageId);
+    final finalPageLabel =
+        pageLabel ??
+        (configProvider != null
+            ? configProvider.pageLabel(finalPageId)
+            : finalPageId);
 
     return Row(
       children: [
@@ -56,7 +60,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icons.person,
             title: 'Name',
             value: finalPageLabel.isNotEmpty ? finalPageLabel : 'Not set',
-            subtitle: finalPageId.isNotEmpty ? 'ID: $finalPageId' : 'No page selected',
+            subtitle: finalPageId.isNotEmpty
+                ? 'ID: $finalPageId'
+                : 'No page selected',
             color: Colors.orange,
           ),
         ),
@@ -83,7 +89,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildReelsSection(ReelsProvider reelsProvider, {BuildContext? navContext}) {
+  Widget _buildReelsSection(
+    ReelsProvider reelsProvider, {
+    BuildContext? navContext,
+  }) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,48 +136,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final reel = reelsProvider.reels[index];
-                return ReelCard(
-                  key: ValueKey(reel.id),
-                  reel: reel,
-                  onTap: () {
-                    final parentCtx = navContext ?? context;
-                    // Close the bottom sheet then navigate from the parent
-                    // context in a safe, post-frame callback.
-                    Navigator.of(context).maybePop().then((_) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        try {
-                          GoRouter.of(parentCtx).push(
-                            AppRouter.comments,
-                            extra: {
-                              'reelId': reel.id,
-                              'reelDescription': reel.description,
-                            },
-                          );
-                        } catch (e, st) {
-                          debugPrint('navigation after pop failed: $e\n$st');
-                        }
-                      });
+              return ReelCard(
+                key: ValueKey(reel.id),
+                reel: reel,
+                onTap: () {
+                  final parentCtx = navContext ?? context;
+                  // Close the bottom sheet then navigate from the parent
+                  // context in a safe, post-frame callback.
+                  Navigator.of(context).maybePop().then((_) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      try {
+                        GoRouter.of(parentCtx).push(
+                          AppRouter.comments,
+                          extra: {
+                            'reelId': reel.id,
+                            'reelDescription': reel.description,
+                          },
+                        );
+                      } catch (e, st) {
+                        debugPrint('navigation after pop failed: $e\n$st');
+                      }
                     });
-                  },
-                  onEditRule: () {
-                    final parentCtx = navContext ?? context;
-                    Navigator.of(context).maybePop().then((_) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        try {
-                          GoRouter.of(parentCtx).push(
-                            AppRouter.ruleEditor,
-                            extra: {
-                              'reelId': reel.id,
-                              'reelDescription': reel.description,
-                            },
-                          );
-                        } catch (e, st) {
-                          debugPrint('navigation after pop failed: $e\n$st');
-                        }
-                      });
+                  });
+                },
+                onEditRule: () {
+                  final parentCtx = navContext ?? context;
+                  Navigator.of(context).maybePop().then((_) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      try {
+                        GoRouter.of(parentCtx).push(
+                          AppRouter.ruleEditor,
+                          extra: {
+                            'reelId': reel.id,
+                            'reelDescription': reel.description,
+                          },
+                        );
+                      } catch (e, st) {
+                        debugPrint('navigation after pop failed: $e\n$st');
+                      }
                     });
-                  },
-                );
+                  });
+                },
+              );
             },
           ),
       ],
@@ -213,7 +222,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Previously there was logic to switch the global selected page. That behavior
   // has been removed; per-page operations now use explicit per-page APIs.
 
-  
   Future<void> _refreshData() async {
     final reelsProvider = context.read<ReelsProvider>();
     await reelsProvider.refreshReels();
@@ -233,14 +241,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Align(
-          alignment: Alignment.centerLeft,
-          child: const Text('Dashboard'),
-        ),
-        automaticallyImplyLeading: false,
-        actions: [],
-      ),
       body: RefreshIndicator(
         onRefresh: _refreshData,
         child: CustomScrollView(
@@ -359,10 +359,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: BorderSide(
-                color: Colors.grey.withOpacity(0.25),
-                width: 1,
-              ),
+              side: BorderSide(color: Colors.grey.withOpacity(0.25), width: 1),
             ),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -386,17 +383,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               children: [
                                 Text(
                                   label,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
+                                  style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(fontWeight: FontWeight.bold),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 Text(
                                   'ID: $pageId',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
+                                  style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(color: Colors.grey[600]),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -413,30 +406,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const LoadingIndicator(message: 'Loading page...'),
                   ] else
                     Consumer3<RulesProvider, ReelsProvider, ConfigProvider>(
-                      builder: (
-                        context,
-                        rulesProvider,
-                        reelsProvider,
-                        configProvider,
-                        _,
-                      ) {
-                        final label = configProvider.pageLabel(pageId);
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildStatisticsRow(
-                              rulesProvider: rulesProvider,
-                              reelsProvider: reelsProvider,
-                              pageId: pageId,
-                              pageLabel: label,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildMonitoringSection(margin: EdgeInsets.zero),
-                            const SizedBox(height: 16),
-                            _buildReelsSection(reelsProvider),
-                          ],
-                        );
-                      },
+                      builder:
+                          (
+                            context,
+                            rulesProvider,
+                            reelsProvider,
+                            configProvider,
+                            _,
+                          ) {
+                            final label = configProvider.pageLabel(pageId);
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildStatisticsRow(
+                                  rulesProvider: rulesProvider,
+                                  reelsProvider: reelsProvider,
+                                  pageId: pageId,
+                                  pageLabel: label,
+                                ),
+                                const SizedBox(height: 16),
+                                _buildMonitoringSection(
+                                  margin: EdgeInsets.zero,
+                                ),
+                                const SizedBox(height: 16),
+                                _buildReelsSection(reelsProvider),
+                              ],
+                            );
+                          },
                     ),
                 ],
               ),
@@ -526,7 +522,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: _isSwitchingPage ? null : () => _openPageDetailsInline(pageId),
+            onTap: _isSwitchingPage
+                ? null
+                : () => _openPageDetailsInline(pageId),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -548,7 +546,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          TextButton( 
+                          TextButton(
                             onPressed: () => context.go(
                               AppRouter.settings,
                               extra: {'pageId': pageId},
@@ -563,23 +561,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Row(
                     children: [
                       Chip(
-                        label: Text(isConfigured ? 'Configured' : 'Missing config'),
+                        label: Text(
+                          isConfigured ? 'Configured' : 'Missing config',
+                        ),
                         backgroundColor: isConfigured
                             ? Colors.green.withOpacity(0.15)
                             : Colors.orangeAccent.withOpacity(0.15),
                         labelStyle: theme.textTheme.bodySmall?.copyWith(
-                          color: isConfigured ? Colors.green : Colors.orangeAccent,
+                          color: isConfigured
+                              ? Colors.green
+                              : Colors.orangeAccent,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Chip(
-                        label: Text(isConnected ? 'Connected' : 'Not Connected'),
+                        label: Text(
+                          isConnected ? 'Connected' : 'Not Connected',
+                        ),
                         backgroundColor: isConnected
                             ? Colors.green.withOpacity(0.15)
                             : Colors.orangeAccent.withOpacity(0.15),
                         labelStyle: theme.textTheme.bodySmall?.copyWith(
-                          color: isConnected ? Colors.green : Colors.orangeAccent,
+                          color: isConnected
+                              ? Colors.green
+                              : Colors.orangeAccent,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -744,10 +750,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final lastError = provider.lastError;
     final lastCheck = provider.lastCheck;
 
-  IconData icon;
-  Color statusColor;
-  String primaryText;
-  String secondaryText;
+    IconData icon;
+    Color statusColor;
+    String primaryText;
+    String secondaryText;
 
     if (hasRecentError && lastError != null) {
       icon = Icons.error_outline;

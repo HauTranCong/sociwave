@@ -22,6 +22,7 @@ class ConfigProvider extends ChangeNotifier {
   final Map<String, String> _pageNames = {};
   final Map<String, bool> _pageConnectionStatus = {};
   bool _hydratedFromBackend = false;
+  bool _isHydratingPages = false;
 
   ConfigProvider(this._storage, [ApiClientProvider? apiClientProvider]) {
     _apiClientProvider = apiClientProvider;
@@ -56,8 +57,8 @@ class ConfigProvider extends ChangeNotifier {
       return;
     }
     if (hasSelectedPage) {
-  await loadConfig();
-  await testAllPagesConnection();
+      await loadConfig();
+      await testAllPagesConnection();
     } else {
       notifyListeners();
     }
@@ -147,7 +148,9 @@ class ConfigProvider extends ChangeNotifier {
     int? reelsLimit,
     int? commentsLimit,
   }) async {
-    final resolvedPage = _normalizePageId(pageId ?? _selectedPageId ?? _config.pageId);
+    final resolvedPage = _normalizePageId(
+      pageId ?? _selectedPageId ?? _config.pageId,
+    );
     final updatedConfig = _config.copyWith(
       token: token,
       version: version,
@@ -438,7 +441,11 @@ class ConfigProvider extends ChangeNotifier {
     if (storedSelection != null) {
       await _updateSelectedPage(storedSelection, persist: false, notify: false);
     } else if (_managedPages.isNotEmpty) {
-      await _updateSelectedPage(_managedPages.first, persist: false, notify: false);
+      await _updateSelectedPage(
+        _managedPages.first,
+        persist: false,
+        notify: false,
+      );
     } else {
       await _updateSelectedPage(null, persist: false, notify: false);
     }
@@ -507,14 +514,18 @@ class ConfigProvider extends ChangeNotifier {
   }
 
   Future<void> _hydratePagesFromBackend() async {
-    if (_hydratedFromBackend) return;
+    if (_hydratedFromBackend || _isHydratingPages) return;
     // Only hydrate when we have an auth header (user is logged in)
     if (!_hasAuthHeader()) return;
 
+    _isHydratingPages = true;
     try {
       final apiClient = _getApiClient();
       final backendPages = await apiClient.getPages();
-      if (backendPages.isEmpty) return;
+      if (backendPages.isEmpty) {
+        _hydratedFromBackend = true;
+        return;
+      }
       _managedPages = backendPages;
       await _storage.saveManagedPages(_managedPages);
 
@@ -538,12 +549,17 @@ class ConfigProvider extends ChangeNotifier {
       await testAllPagesConnection();
     } catch (e, stackTrace) {
       AppLogger.error('Failed to hydrate pages from backend', e, stackTrace);
+    } finally {
+      _isHydratingPages = false;
     }
   }
 
   /// Execute an async action with the ApiClient temporarily scoped to a pageId
   /// then restore the original page scope. Useful for per-page operations.
-  Future<T> _withPageScope<T>(String? pageId, Future<T> Function() action) async {
+  Future<T> _withPageScope<T>(
+    String? pageId,
+    Future<T> Function() action,
+  ) async {
     final apiClient = _getApiClient();
     final original = apiClient.pageId;
     try {
@@ -559,7 +575,10 @@ class ConfigProvider extends ChangeNotifier {
     final normalized = _normalizePageId(pageId);
     if (normalized == null) return null;
     try {
-      final config = await _withPageScope(normalized, () => _getApiClient().getConfig());
+      final config = await _withPageScope(
+        normalized,
+        () => _getApiClient().getConfig(),
+      );
       // Track page and its config status locally
       await _ensurePageTracked(normalized);
       _pageConfigStatus[normalized] = config.isValid;
@@ -567,7 +586,11 @@ class ConfigProvider extends ChangeNotifier {
       notifyListeners();
       return config;
     } catch (e, stackTrace) {
-      AppLogger.error('Failed to load config for page $normalized', e, stackTrace);
+      AppLogger.error(
+        'Failed to load config for page $normalized',
+        e,
+        stackTrace,
+      );
       return null;
     }
   }
@@ -589,7 +612,10 @@ class ConfigProvider extends ChangeNotifier {
       _pageConnectionStatus[normalized] = false;
 
       // Persist to backend scoped to the page, but do not change global selection.
-      await _withPageScope(normalized, () => _getApiClient().saveConfig(configToSave));
+      await _withPageScope(
+        normalized,
+        () => _getApiClient().saveConfig(configToSave),
+      );
 
       await _refreshPageName(normalized);
       await _storage.saveManagedPages(_managedPages);
@@ -597,7 +623,11 @@ class ConfigProvider extends ChangeNotifier {
       return true;
     } catch (e, stackTrace) {
       _setError('Failed to save config: $e');
-      AppLogger.error('Failed to save config for page $normalized', e, stackTrace);
+      AppLogger.error(
+        'Failed to save config for page $normalized',
+        e,
+        stackTrace,
+      );
       return false;
     } finally {
       _setLoading(false);
