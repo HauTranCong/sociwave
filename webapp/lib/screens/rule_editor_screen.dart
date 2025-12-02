@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../domain/models/rule.dart';
 import '../providers/rules_provider.dart';
 import '../providers/reels_provider.dart';
+import '../providers/api_client_provider.dart';
 import '../widgets/loading_overlay.dart';
 
 /// Screen for creating/editing auto-reply rules
 class RuleEditorScreen extends StatefulWidget {
   final String? reelId;
   final String? reelDescription;
+  final String? pageId;
 
-  const RuleEditorScreen({super.key, this.reelId, this.reelDescription});
+  const RuleEditorScreen({
+    super.key,
+    this.reelId,
+    this.reelDescription,
+    this.pageId,
+  });
 
   @override
   State<RuleEditorScreen> createState() => _RuleEditorScreenState();
@@ -28,7 +35,16 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
   @override
   void initState() {
     super.initState();
+    _setPageScope();
     _loadExistingRule();
+  }
+
+  void _setPageScope() {
+    final pageId = widget.pageId;
+    if (pageId != null && pageId.isNotEmpty) {
+      // Ensure API calls are scoped to the correct page for rule mutations
+      context.read<ApiClientProvider>().setPageId(pageId);
+    }
   }
 
   void _loadExistingRule() {
@@ -71,6 +87,7 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (widget.reelId == null) return;
 
+    _setPageScope();
     setState(() => _isLoading = true);
 
     // Parse keywords
@@ -149,6 +166,7 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
 
     if (confirmed != true) return;
 
+    _setPageScope();
     setState(() => _isLoading = true);
 
     final rulesProvider = context.read<RulesProvider>();
@@ -184,7 +202,8 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasRule = widget.reelId != null &&
+    final hasRule =
+        widget.reelId != null &&
         context.watch<RulesProvider>().hasRule(widget.reelId!);
 
     return LoadingOverlay(
@@ -214,8 +233,9 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
                               children: [
                                 Text(
                                   'Edit Rule',
-                                  style: theme.textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 if (widget.reelDescription != null)
                                   Text(
@@ -366,10 +386,12 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
                               icon: const Icon(Icons.save),
                               label: const Text('Save Rule'),
                               style: ElevatedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
                                 foregroundColor: Colors.white,
                               ),
                             ),

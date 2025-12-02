@@ -85,6 +85,7 @@ class AppRouter {
                   child: RuleEditorScreen(
                     reelId: extra?['reelId'] as String?,
                     reelDescription: extra?['reelDescription'] as String?,
+                    pageId: extra?['pageId'] as String?,
                   ),
                 );
               },

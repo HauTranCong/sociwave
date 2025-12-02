@@ -140,6 +140,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               final reel = reelsProvider.reels[index];
               return ReelCard(
                 key: ValueKey(reel.id),
+                index: index + 1,
                 reel: reel,
                 onTap: () {
                   // Ensure API client is scoped to the current page before navigating
