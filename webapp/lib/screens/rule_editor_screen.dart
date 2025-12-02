@@ -183,155 +183,204 @@ class _RuleEditorScreenState extends State<RuleEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasRule = widget.reelId != null &&
+        context.watch<RulesProvider>().hasRule(widget.reelId!);
+
     return LoadingOverlay(
       isLoading: _isLoading,
       child: Scaffold(
-        appBar: AppBar(
-          title: Align(
-            alignment: Alignment.centerLeft,
-            child: const Text('Edit Rule'),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          foregroundColor: Colors.white,
-          actions: [
-            if (widget.reelId != null &&
-                context.read<RulesProvider>().hasRule(widget.reelId!))
-              IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: _deleteRule,
-              ),
-          ],
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Reel Info Card
-                if (widget.reelDescription != null)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
+        body: SafeArea(
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Reel',
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(color: Colors.grey[600]),
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            tooltip: 'Back',
+                            onPressed: () => context.pop(),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.reelDescription!,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Edit Rule',
+                                  style: theme.textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                if (widget.reelDescription != null)
+                                  Text(
+                                    widget.reelDescription!,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.grey[600],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
+                            ),
                           ),
+                          if (hasRule)
+                            TextButton.icon(
+                              onPressed: _isLoading ? null : _deleteRule,
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Delete'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.red,
+                              ),
+                            ),
                         ],
                       ),
-                    ),
-                  ),
-                const SizedBox(height: 24),
+                      const SizedBox(height: 12),
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Reel Info Card
+                            if (widget.reelDescription != null)
+                              Card(
+                                margin: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Reel',
+                                        style: theme.textTheme.labelMedium
+                                            ?.copyWith(color: Colors.grey[600]),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        widget.reelDescription!,
+                                        style: theme.textTheme.bodyMedium,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 24),
 
-                // Keywords Field
-                TextFormField(
-                  controller: _keywordsController,
-                  decoration: const InputDecoration(
-                    labelText: 'Keywords',
-                    hintText: 'hello, hi, thanks (comma-separated)',
-                    helperText:
-                        'Enter keywords to match. Use "." to match all comments.',
-                    prefixIcon: Icon(Icons.label),
-                  ),
-                  maxLines: 2,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'At least one keyword is required (or use "." for all)';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
+                            // Keywords Field
+                            TextFormField(
+                              controller: _keywordsController,
+                              decoration: const InputDecoration(
+                                labelText: 'Keywords',
+                                hintText: 'hello, hi, thanks (comma-separated)',
+                                helperText:
+                                    'Enter keywords to match. Use "." to match all comments.',
+                                prefixIcon: Icon(Icons.label),
+                              ),
+                              maxLines: 2,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'At least one keyword is required (or use "." for all)';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
 
-                // Reply Message Field
-                TextFormField(
-                  controller: _replyMessageController,
-                  decoration: const InputDecoration(
-                    labelText: 'Reply Message',
-                    hintText: 'Thank you for your comment!',
-                    helperText: 'This message will be posted as a reply',
-                    prefixIcon: Icon(Icons.message),
-                  ),
-                  maxLines: 4,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Reply message is required';
-                    }
-                    if (value.trim().length < 3) {
-                      return 'Reply message is too short';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
+                            // Reply Message Field
+                            TextFormField(
+                              controller: _replyMessageController,
+                              decoration: const InputDecoration(
+                                labelText: 'Reply Message',
+                                hintText: 'Thank you for your comment!',
+                                helperText:
+                                    'This message will be posted as a reply',
+                                prefixIcon: Icon(Icons.message),
+                              ),
+                              maxLines: 4,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Reply message is required';
+                                }
+                                if (value.trim().length < 3) {
+                                  return 'Reply message is too short';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
 
-                // Private Reply Field (Optional)
-                TextFormField(
-                  controller: _inboxMessageController,
-                  decoration: const InputDecoration(
-                    labelText: 'Private Reply (Optional)',
-                    hintText: 'Send a private message to the commenter...',
-                    helperText:
-                        'This private message will be sent to the user\'s Messenger after replying',
-                    prefixIcon: Icon(Icons.lock_outline),
-                  ),
-                  maxLines: 4,
-                  validator: (value) {
-                    // Optional field - no validation required
-                    if (value != null &&
-                        value.trim().isNotEmpty &&
-                        value.trim().length < 3) {
-                      return 'Private reply is too short';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
+                            // Private Reply Field (Optional)
+                            TextFormField(
+                              controller: _inboxMessageController,
+                              decoration: const InputDecoration(
+                                labelText: 'Private Reply (Optional)',
+                                hintText:
+                                    'Send a private message to the commenter...',
+                                helperText:
+                                    'This private message will be sent to the user\'s Messenger after replying',
+                                prefixIcon: Icon(Icons.lock_outline),
+                              ),
+                              maxLines: 4,
+                              validator: (value) {
+                                if (value != null &&
+                                    value.trim().isNotEmpty &&
+                                    value.trim().length < 3) {
+                                  return 'Private reply is too short';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 24),
 
-                // Enable Switch
-                Card(
-                  child: SwitchListTile(
-                    title: const Text('Enable Auto-Reply'),
-                    subtitle: const Text(
-                      'Automatically reply to matching comments',
-                    ),
-                    value: _enabled,
-                    onChanged: (value) {
-                      setState(() => _enabled = value);
-                    },
-                    secondary: Icon(
-                      _enabled ? Icons.check_circle : Icons.cancel,
-                      color: _enabled ? Colors.green : Colors.grey,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
+                            // Enable Switch
+                            Card(
+                              margin: EdgeInsets.zero,
+                              child: SwitchListTile(
+                                title: const Text('Enable Auto-Reply'),
+                                subtitle: const Text(
+                                  'Automatically reply to matching comments',
+                                ),
+                                value: _enabled,
+                                onChanged: (value) {
+                                  setState(() => _enabled = value);
+                                },
+                                secondary: Icon(
+                                  _enabled ? Icons.check_circle : Icons.cancel,
+                                  color: _enabled ? Colors.green : Colors.grey,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
 
-                // Save Button
-                ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _saveRule,
-                  icon: const Icon(Icons.save),
-                  label: const Text('Save Rule'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
+                            // Save Button
+                            ElevatedButton.icon(
+                              onPressed: _isLoading ? null : _saveRule,
+                              icon: const Icon(Icons.save),
+                              label: const Text('Save Rule'),
+                              style: ElevatedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.primary,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
