@@ -14,6 +14,7 @@ class MonitorProvider extends ChangeNotifier {
   final ApiClientProvider? _apiClientProvider;
   bool _backendSynced = false;
   bool _isSyncingBackend = false;
+  String _pageId = '';
 
   MonitorStatus _status = MonitorStatus.initial();
   bool _isInitialized = false;
@@ -21,6 +22,9 @@ class MonitorProvider extends ChangeNotifier {
   MonitorProvider(this._storage, [this._apiClientProvider]) {
     // Initialize background service with shared ApiClient when available
     _monitorService = BackgroundMonitorService(_storage, _apiClientProvider);
+    // Carry over any existing page scope on the shared client
+    _monitorService.setPageId(_apiClientProvider?.client.pageId);
+    _pageId = _apiClientProvider?.client.pageId ?? '';
     // Set up callback to update stats in real-time
     _monitorService.onStatsUpdated = _reloadStats;
     // Set up callback to handle errors
@@ -131,6 +135,11 @@ class MonitorProvider extends ChangeNotifier {
         return true;
       }
 
+      if (!_ensurePageScope()) {
+        return false;
+      }
+      _applyPageScopeToClient();
+
       // Clear any previous errors
       _status = _status.clearError();
       notifyListeners();
@@ -149,8 +158,7 @@ class MonitorProvider extends ChangeNotifier {
       // Also enable server-side monitoring toggle if available
       try {
         await _waitForAuthIfNeeded();
-        final client = _apiClientProvider?.client ?? ApiClient();
-        final monitoringService = MonitoringService(client);
+        final monitoringService = MonitoringService(_scopedClientForMonitoring());
         await monitoringService.setMonitoringEnabled(true);
       } catch (e) {
         AppLogger.warning('Failed to enable server-side monitoring: $e');
@@ -184,8 +192,8 @@ class MonitorProvider extends ChangeNotifier {
       // Also disable server-side monitoring toggle if available
       try {
         await _waitForAuthIfNeeded();
-        final client = _apiClientProvider?.client ?? ApiClient();
-        final monitoringService = MonitoringService(client);
+        _applyPageScopeToClient();
+        final monitoringService = MonitoringService(_scopedClientForMonitoring());
         await monitoringService.setMonitoringEnabled(false);
       } catch (e) {
         AppLogger.warning('Failed to disable server-side monitoring: $e');
@@ -216,6 +224,9 @@ class MonitorProvider extends ChangeNotifier {
     try {
       if (!_status.isRunning) {
         AppLogger.warning('⚠️ Cannot run cycle: monitoring not started');
+        return;
+      }
+      if (!_ensurePageScope()) {
         return;
       }
 
@@ -442,5 +453,40 @@ class MonitorProvider extends ChangeNotifier {
     if (_backendSynced || _isSyncingBackend) return;
     if (!_hasAuthHeader()) return;
     init();
+  }
+
+  /// Inject the current page scope so monitoring API calls include page_id
+  void setPageScope(String? pageId) {
+    final normalized = (pageId ?? '').trim();
+    if (normalized == _pageId) return;
+    _pageId = normalized;
+    _apiClientProvider?.setPageId(normalized.isEmpty ? null : normalized);
+    _monitorService.setPageId(normalized);
+  }
+
+  bool _ensurePageScope() {
+    if (_pageId.isNotEmpty) return true;
+    _setError('Select a page before enabling monitoring.');
+    AppLogger.warning('Monitoring requires a page scope; pageId is empty.');
+    return false;
+  }
+
+  /// Keep the shared client pointed at the current page before calling monitoring APIs
+  void _applyPageScopeToClient() {
+    if (_pageId.isEmpty) return;
+    _apiClientProvider?.setPageId(_pageId);
+    _monitorService.setPageId(_pageId);
+  }
+
+  /// Build an ApiClient with the correct page scope to avoid cross-page state writes.
+  ApiClient _scopedClientForMonitoring() {
+    final page = _pageId.isEmpty ? null : _pageId;
+    final shared = _apiClientProvider?.client;
+    final token = shared?.getAuthHeader();
+    if (shared != null) {
+      shared.setPageId(page);
+      return shared;
+    }
+    return ApiClient(authToken: token, pageId: page);
   }
 }

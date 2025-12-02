@@ -443,6 +443,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 const SizedBox(height: 16),
                                 _buildMonitoringSection(
                                   margin: EdgeInsets.zero,
+                                  pageId: pageId,
                                 ),
                                 const SizedBox(height: 16),
                                 _buildReelsSection(
@@ -630,9 +631,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMonitoringSection({EdgeInsets? margin}) {
+  Widget _buildMonitoringSection({EdgeInsets? margin, required String pageId}) {
     return Consumer<MonitorProvider>(
       builder: (context, provider, child) {
+        // Ensure monitoring API calls are scoped to the current page
+        provider.setPageScope(pageId);
         return Card(
           margin:
               margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -711,7 +714,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(width: 8),
                     InkWell(
-                      onTap: () => _showIntervalDialog(context, provider),
+                      onTap: () =>
+                          _showIntervalDialog(context, provider, pageId),
                       child: Icon(
                         Icons.edit_outlined,
                         size: 16,
@@ -846,7 +850,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Show dialog to change monitoring interval
-  void _showIntervalDialog(BuildContext context, MonitorProvider provider) {
+  void _showIntervalDialog(
+    BuildContext context,
+    MonitorProvider provider,
+    String pageId,
+  ) {
     final TextEditingController controller = TextEditingController(
       text: provider.monitoringInterval.inMinutes.toString(),
     );
@@ -906,11 +914,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final minutes = int.parse(controller.text);
                 final seconds = minutes * 60;
 
-                // Call backend to set monitoring interval
+                if (pageId.isEmpty) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Select a page before updating interval.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                // Call backend to set monitoring interval (scoped to page)
                 bool backendOk = false;
                 try {
-                  final apiClient = context.read<ApiClientProvider>().client;
-                  final monitoringService = MonitoringService(apiClient);
+                  final apiClientProvider = context.read<ApiClientProvider>();
+                  apiClientProvider.setPageId(pageId);
+                  final monitoringService = MonitoringService(
+                    apiClientProvider.client,
+                  );
                   final updated = await monitoringService.setMonitoringInterval(
                     seconds,
                   );

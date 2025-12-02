@@ -16,6 +16,7 @@ class BackgroundMonitorService {
   final StorageService _storage;
   final ApiClient? _apiClient;
   final ApiClientProvider? _apiClient_provider;
+  String? _pageId;
 
   bool _isRunning = false;
   Duration _interval = const Duration(minutes: 5);
@@ -27,6 +28,14 @@ class BackgroundMonitorService {
   Function(String)? onError;
 
   BackgroundMonitorService(this._storage, [this._apiClient_provider, ApiClient? apiClient]) : _apiClient = apiClient;
+
+  /// Ensure monitoring calls are scoped to the selected page
+  void setPageId(String? pageId) {
+    final normalized = pageId?.trim();
+    _pageId = (normalized != null && normalized.isNotEmpty) ? normalized : null;
+    _apiClient_provider?.setPageId(_pageId);
+    _apiClient?.setPageId(_pageId);
+  }
 
   /// Start monitoring with specified interval
   Future<bool> start({Duration interval = const Duration(minutes: 5)}) async {
@@ -112,6 +121,10 @@ class BackgroundMonitorService {
     try {
       AppLogger.info('Starting monitoring cycle');
       final startTime = DateTime.now();
+      final scopedPage = _apiClient_provider?.client.pageId ?? _apiClient?.pageId ?? _pageId;
+      if (scopedPage == null || scopedPage.isEmpty) {
+        throw Exception('Monitoring requires a selected page. Set a page ID first.');
+      }
       // Delegate monitoring logic to backend service using latest client from provider
       if (_apiClient_provider != null) {
         // AppLogger.info('Background triggerMonitoring Authorization: ${_apiClient_provider.client.getAuthHeader() ?? '<none>'}');
