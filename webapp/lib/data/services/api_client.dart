@@ -58,6 +58,40 @@ class ApiClient {
     );
   }
 
+  /// Fetch recent monitoring metrics (for dashboard widget)
+  Future<List<Map<String, dynamic>>> getMonitoringMetrics({int limit = 10, int? userId, String? pageId}) async {
+    final params = <String, dynamic>{'limit': limit.toString()};
+    if (userId != null) params['user_id'] = userId.toString();
+    if (pageId != null) params['page_id'] = pageId;
+    try {
+      final response = await _dio.get('/metrics/summary', queryParameters: params);
+      if (response.statusCode == 200 && response.data is List) {
+        // Each item is a Map<String, dynamic>
+        return List<Map<String, dynamic>>.from(response.data);
+      } else {
+        throw ApiException('Failed to load monitoring metrics', statusCode: response.statusCode);
+      }
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  /// Fetch aggregated metrics from the backend (/metrics/aggregate)
+  Future<Map<String, dynamic>> getAggregateMetrics({int? userId, String? pageId}) async {
+    final params = <String, dynamic>{};
+    if (userId != null) params['user_id'] = userId.toString();
+    if (pageId != null) params['page_id'] = pageId;
+    try {
+      final response = await _dio.get('/metrics/aggregate', queryParameters: params);
+      if (response.statusCode == 200 && response.data is Map) {
+        return Map<String, dynamic>.from(response.data);
+      }
+      throw ApiException('Failed to load aggregate metrics', statusCode: response.statusCode);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
   /// Update Authorization header on the existing Dio instance.
   void setAuthToken(String? authToken) {
     if (authToken != null && authToken.isNotEmpty) {

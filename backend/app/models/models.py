@@ -85,3 +85,19 @@ class UserModel(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     theme_mode = Column(String, default='system')
+
+
+class MonitoringMetric(Base):
+    __tablename__ = "monitoring_metrics"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, index=True, nullable=True)
+    page_id = Column(String, index=True, nullable=True)
+    start_time = Column(String, nullable=False)
+    duration_seconds = Column(String, nullable=False)
+    reels_scanned = Column(Integer, default=0)
+    # number of reels actively processed (had an enabled rule and were acted upon)
+    reels_active = Column(Integer, default=0)
+    comments_scanned = Column(Integer, default=0)
+    replies_sent = Column(Integer, default=0)
+    inbox_sent = Column(Integer, default=0)
+    api_calls = Column(Integer, default=0)

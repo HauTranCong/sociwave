@@ -15,6 +15,7 @@ import '../widgets/loading_indicator.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_display.dart';
 import '../widgets/stat_card.dart';
+import '../widgets/monitoring_metrics_widget.dart';
 
 /// Main dashboard screen showing reels and monitoring status
 class DashboardScreen extends StatefulWidget {
@@ -260,6 +261,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // API Configuration Banner (if using mock data)
             SliverToBoxAdapter(child: _buildConfigBanner()),
 
+            SliverToBoxAdapter(child: MonitoringMetricsWidget()),
+
             // Page selector cards or inline detail
             SliverToBoxAdapter(
               child: _selectedPageId == null
@@ -341,7 +344,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final pages = provider.managedPages;
         if (pages.isEmpty) return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -349,7 +352,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               if (_isSwitchingPage) const SizedBox(height: 6),
               ...pages.map(
                 (pageId) => Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: _buildPageCard(provider, pageId),
                 ),
               ),

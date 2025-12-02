@@ -1,13 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import os
 from app.api import monitoring, rules, config, auth
+from app.api import metrics as metrics_api
 from app.scheduler import MonitoringScheduler, monitoring_scheduler as monitoring_scheduler_singleton
 from app.core.database import engine
 from app.core.migrations import run_migrations
 from app.models import models
 from app.core.settings import settings
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
 
 # Ensure legacy tables are migrated to user-scoped versions before creating metadata
 run_migrations(engine)
@@ -58,6 +61,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(monitoring.router, prefix="/api", tags=["monitoring"])
 app.include_router(rules.router, prefix="/api", tags=["rules"])
 app.include_router(config.router, prefix="/api", tags=["config"])
+app.include_router(metrics_api.router, prefix="/api/metrics", tags=["metrics"])
 
 # Start monitoring scheduler only when enabled in settings. This prevents
 # duplicate scheduler instances when running multiple uvicorn workers.
@@ -86,6 +90,13 @@ else:
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the SociWave API"}
+
+
+@app.get('/metrics')
+def metrics():
+    """Expose Prometheus metrics for scraping."""
+    data = generate_latest()
+    return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
 
 @app.on_event('shutdown')

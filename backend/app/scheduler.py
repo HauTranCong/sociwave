@@ -5,7 +5,7 @@ from app.services.config_service import ConfigService
 from app.services.facebook_service import FacebookService
 from app.services.monitor_service import MonitorService
 from app.core.database import SessionLocal
-from app.models.models import UserModel
+from app.models.models import UserModel, MonitoringMetric
 from sqlalchemy.orm import Session
 import logging
 
@@ -24,7 +24,7 @@ class MonitoringScheduler:
             job_defaults={
                 "misfire_grace_time": 30,  # seconds tolerance before treating as missed
                 "coalesce": True,          # merge runs if several were missed
-                "max_instances": 5,        # prevent overlapping runs
+                "max_instances": 1,        # prevent overlapping runs
             }
         )
         self.jobs: Dict[Tuple[int, str], object] = {}
@@ -61,9 +61,60 @@ class MonitoringScheduler:
             monitor_service = MonitorService(fb)
             rules = config_service.load_rules()
             logger.debug('Running scheduled monitoring cycle for user %s page %s: %s rules', user_id, page_id, len(rules))
-            monitor_service.perform_monitoring_cycle(rules)
+            result = monitor_service.perform_monitoring_cycle(rules, user_id=user_id)
             logger.debug('Scheduled monitoring cycle completed for user %s page %s', user_id, page_id)
             self.last_run[(user_id, page_id)] = datetime.utcnow()
+
+            # Persist monitoring metrics to DB
+            try:
+                mm = MonitoringMetric(
+                    user_id=user_id,
+                    page_id=page_id,
+                    start_time=self.last_run[(user_id, page_id)].isoformat(),
+                    duration_seconds=str(result.get('duration_seconds', 0)),
+                    reels_scanned=int(result.get('reels', 0)),
+                    reels_active=int(result.get('reels', 0)),
+                    comments_scanned=int(result.get('comments', 0)),
+                    replies_sent=int(result.get('replies', 0)),
+                    inbox_sent=int(result.get('inbox', 0)),
+                    api_calls=int(result.get('api_calls', 0)),
+                )
+                # Dedupe: avoid persisting a duplicate metric if one was just written for this user/page
+                try:
+                    latest = db.query(MonitoringMetric).filter(MonitoringMetric.user_id == user_id, MonitoringMetric.page_id == page_id).order_by(MonitoringMetric.id.desc()).first()
+                    duplicate = False
+                    if latest is not None and latest.start_time:
+                        try:
+                            # parse ISO strings using built-in fromisoformat where possible
+                            latest_ts = datetime.fromisoformat(latest.start_time)
+                            new_ts = datetime.fromisoformat(mm.start_time)
+                            delta = abs((new_ts - latest_ts).total_seconds())
+                            # if last persisted metric is within 60 seconds, treat as duplicate and skip
+                            if delta < 60:
+                                duplicate = True
+                        except Exception:
+                            # if parsing fails, fall back to insert
+                            duplicate = False
+                    if duplicate:
+                        logger.info('Skipping persist: recent MonitoringMetric exists for user=%s page=%s (within 60s)', user_id, page_id)
+                    else:
+                        logger.info('Persisting MonitoringMetric for user=%s page=%s: %s', user_id, page_id, {
+                            'duration_seconds': mm.duration_seconds,
+                            'reels_scanned': mm.reels_scanned,
+                            'reels_active': mm.reels_active,
+                            'comments_scanned': mm.comments_scanned,
+                            'replies_sent': mm.replies_sent,
+                            'inbox_sent': mm.inbox_sent,
+                            'api_calls': mm.api_calls,
+                        })
+                        db.add(mm)
+                        db.commit()
+                except Exception:
+                    db.rollback()
+                    raise
+            except Exception:
+                db.rollback()
+                logger.exception('Failed to persist monitoring metrics for user %s page %s', user_id, page_id)
         except Exception as e:
             logger.exception('Scheduled monitoring job failed for user %s page %s: %s', user_id, page_id, e)
         finally:
@@ -75,6 +126,12 @@ class MonitoringScheduler:
             return
         try:
             self.scheduler.remove_job(job.id)
+        except Exception:
+            pass
+        try:
+            # update scheduler jobs gauge
+            from app import metrics
+            metrics.scheduler_jobs_scheduled.set(len(self.jobs))
         except Exception:
             pass
 
@@ -106,6 +163,11 @@ class MonitoringScheduler:
             if not self.scheduler.running:
                 self.scheduler.start()
             logger.info('Monitoring scheduler started for user %s page %s with interval %s seconds', user_id, page_id, interval_seconds)
+            try:
+                from app import metrics
+                metrics.scheduler_jobs_scheduled.set(len(self.jobs))
+            except Exception:
+                pass
         except Exception as e:
             logger.exception('Failed to schedule monitoring job for user %s page %s: %s', user_id, page_id, e)
 

@@ -100,7 +100,7 @@ If you prefer to run the frontend and backend separately without Docker:
     cd backend
     python -m venv .venv
     # Activate the virtual environment (Windows)
-    .venv\Scripts\activate.bat
+    .venv\Scripts\Activate.ps1
     # Or on macOS/Linux
     # source .venv/bin/activate
     pip install -r requirements.txt
@@ -269,22 +269,6 @@ Serve the Flutter frontend and FastAPI backend from the same machine with Docker
 3. Build and start both services: `docker compose -f docker/docker-compose.yml up -d --build`.
 4. Open ports 80 (frontend via Nginx) and 8000 (FastAPI) in your firewall/security group, or front the stack with a reverse proxy/SSL terminator of your choice.
 5. Browse to `https://your-domain.com` (or `http://your-domain.com:8080` if you keep the default port mapping) and the web app will call the backend on the same host without CORS issues.
-
----
-
-## ⚠️ Important Notes
-
-### Browser-Based Monitoring
-
-This is a **Flutter web application** that runs entirely in the browser. The monitoring service requires the browser to remain open:
-
-- ✅ Works while browser tab is open
-- ❌ Stops when browser is closed
-- ❌ Requires device to stay on
-
-### 24/7 Monitoring (Future Enhancement)
-
-For true 24/7 monitoring without keeping the browser open, consider adding a backend server (see [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for details).
 
 ---
 

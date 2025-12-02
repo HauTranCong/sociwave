@@ -1,0 +1,6 @@
+# Development requirements for the backend
+ruff
+
+# Optional extras (uncomment if you want to use them):
+# mypy==1.5.1
+# bandit==1.7.4

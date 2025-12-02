@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from fastapi import HTTPException, status
 import logging
 from app.models.models import Reel, Comment
+from app.metrics import fb_api_calls, label_for
 
 
 class FacebookService:
@@ -70,6 +71,11 @@ class FacebookService:
             {"fields": "id,name,picture"},
         )
         try:
+            # metrics
+            try:
+                fb_api_calls.labels(method='get_user_info', page_id=label_for(self.page_id)).inc()
+            except Exception:
+                pass
             response = requests.get(url, params=params)
             response.raise_for_status()
             return response.json()
@@ -88,6 +94,11 @@ class FacebookService:
             }
         )
         try:
+            # metrics
+            try:
+                fb_api_calls.labels(method='get_reels', page_id=label_for(self.page_id)).inc()
+            except Exception:
+                pass
             response = requests.get(url, params=params)
             response.raise_for_status()
             data = response.json()
@@ -106,6 +117,11 @@ class FacebookService:
             }
         )
         try:
+            # metrics
+            try:
+                fb_api_calls.labels(method='get_posts', page_id=label_for(self.page_id)).inc()
+            except Exception:
+                pass
             response = requests.get(url, params=params)
             response.raise_for_status()
             data = response.json()
@@ -124,6 +140,11 @@ class FacebookService:
             }
         )
         try:
+            # metrics
+            try:
+                fb_api_calls.labels(method='get_comments', page_id=label_for(self.page_id)).inc()
+            except Exception:
+                pass
             response = requests.get(url, params=params)
             response.raise_for_status()
             data = response.json()
@@ -146,6 +167,11 @@ class FacebookService:
             }
         )
         try:
+            # metrics
+            try:
+                fb_api_calls.labels(method='has_replied_to_comment', page_id=label_for(self.page_id)).inc()
+            except Exception:
+                pass
             response = requests.get(url, params=params)
             response.raise_for_status()
             data = response.json()
@@ -165,6 +191,11 @@ class FacebookService:
         url = f"{self.base_url}/{comment_id}/comments"
         params = self._build_params({"message": message})
         try:
+            # metrics
+            try:
+                fb_api_calls.labels(method='reply_to_comment', page_id=label_for(self.page_id)).inc()
+            except Exception:
+                pass
             response = requests.post(url, params=params)
             response.raise_for_status()
             return response.json()
@@ -186,6 +217,11 @@ class FacebookService:
         }
         headers = {"Content-Type": "application/json"}
         try:
+            # metrics
+            try:
+                fb_api_calls.labels(method='send_private_reply', page_id=label_for(self.page_id)).inc()
+            except Exception:
+                pass
             response = requests.post(url, params=params, json=payload, headers=headers)
             response.raise_for_status()
             return response.json()

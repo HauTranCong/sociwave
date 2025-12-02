@@ -1,9 +1,12 @@
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Optional
 from app.models.models import Reel, Rule, Comment
 from app.services.facebook_service import FacebookService
+from app import metrics
 import logging
+from time import time
 
 logger = logging.getLogger(__name__)
+
 
 class MonitorService:
     def __init__(self, facebook_service: FacebookService):
@@ -44,14 +47,36 @@ class MonitorService:
         """
         return comment.from_user is not None and comment.from_user.id == page_id
 
-    def perform_monitoring_cycle(self, rules: Dict[str, Rule]):
+    def perform_monitoring_cycle(self, rules: Dict[str, Rule], user_id: Optional[int] = None):
+        """Run one monitoring cycle. Pass user_id when called from scheduler so metrics can be labeled.
+        """
+        uid = str(user_id) if user_id is not None else 'unknown'
+        page_id_label = metrics.label_for(self.facebook_service.page_id)
+
+        start_ts = time()
+
         enabled_rules = {k: v for k, v in rules.items() if v.enabled}
         if not enabled_rules:
             logger.debug("No enabled rules found, skipping cycle")
-            return
+            # return zeroed metrics
+            return {
+                'reels': 0,
+                'comments': 0,
+                'replies': 0,
+                'inbox': 0,
+                'duration_seconds': 0.0,
+            }
+
+        # Track API call estimates locally so we can persist per-cycle API usage
+        api_calls = 0
 
         reels = self.facebook_service.get_reels()
+        api_calls += 1
         logger.debug("Fetched %s reels to evaluate rules", len(reels))
+
+        # We'll count only reels that have an enabled rule configured and were actually processed.
+        reels_processed = 0
+
         page_id = self.facebook_service.page_id
         total_comments = 0
         replies_sent = 0
@@ -61,13 +86,20 @@ class MonitorService:
             rule = enabled_rules.get(reel.id)
             # Log whether this reel has an associated enabled rule
             if rule:
+                reels_processed += 1
                 logger.debug("Reel %s matched rule (enabled=%s)", reel.id, getattr(rule, 'enabled', None))
             else:
                 logger.debug("Reel %s has no enabled rule configured; skipping", reel.id)
                 continue
 
             comments = self.facebook_service.get_comments(reel.id)
+            api_calls += 1
             total_comments += len(comments)
+            try:
+                metrics.monitor_cycle_comments.labels(user_id=uid, page_id=page_id_label).inc(len(comments))
+            except Exception:
+                pass
+
             logger.debug("Processing %s comments for reel %s", len(comments), reel.id)
             for comment in comments:
                 # Skip comments we've already processed in previous cycles
@@ -79,11 +111,23 @@ class MonitorService:
                     logger.debug("Skipping comment %s on reel %s: authored by page", comment.id, reel.id)
                     continue
 
-                if self._has_page_replied(comment, page_id):
-                    # Remember that this comment thread already has a page reply
-                    logger.debug("Skipping comment %s on reel %s: page already replied in thread", comment.id, reel.id)
-                    self._replied_comment_ids.add(comment.id)
-                    continue
+                # Check nested replies first; only call has_replied_to_comment when necessary
+                has_reply = False
+                if comment.replies:
+                    if any(reply.from_user and reply.from_user.id == page_id for reply in comment.replies):
+                        has_reply = True
+
+                if not has_reply:
+                    # call API to check thread replies
+                    try:
+                        api_calls += 1
+                        if self._has_page_replied(comment, page_id):
+                            logger.debug("Skipping comment %s on reel %s: page already replied in thread", comment.id, reel.id)
+                            self._replied_comment_ids.add(comment.id)
+                            continue
+                    except Exception:
+                        # If check fails, assume not replied and continue
+                        pass
 
                 # Check and log match attempts
                 matched = False
@@ -94,32 +138,73 @@ class MonitorService:
 
                 if not matched:
                     logger.debug("Comment %s on reel %s did not match rule keywords", comment.id, reel.id)
-                if matched:
+                    continue
+
+                # Matched -> reply
+                try:
+                    logger.debug("Rule matched comment %s on reel %s; attempting to reply", comment.id, reel.id)
+                    api_calls += 1
+                    resp = self.facebook_service.reply_to_comment(comment.id, rule.reply_message)
+                    replies_sent += 1
                     try:
-                        logger.debug("Rule matched comment %s on reel %s; attempting to reply", comment.id, reel.id)
-                        resp = self.facebook_service.reply_to_comment(comment.id, rule.reply_message)
-                        replies_sent += 1
-                        logger.debug("Auto-replied to comment %s on reel %s; fb_response=%s", comment.id, reel.id, resp if resp is not None else {})
-                        # Mark this comment as replied so we don't process it again
-                        self._replied_comment_ids.add(comment.id)
+                        metrics.monitor_cycle_replies_sent.labels(user_id=uid, page_id=page_id_label).inc()
+                    except Exception:
+                        pass
+                    logger.debug("Auto-replied to comment %s on reel %s; fb_response=%s", comment.id, reel.id, resp if resp is not None else {})
+                    # Mark this comment as replied so we don't process it again
+                    self._replied_comment_ids.add(comment.id)
 
-                        if rule.inbox_message:
+                    if rule.inbox_message:
+                        try:
+                            api_calls += 1
+                            self.facebook_service.send_private_reply(comment.id, rule.inbox_message)
+                            inbox_sent += 1
                             try:
-                                self.facebook_service.send_private_reply(comment.id, rule.inbox_message)
-                                inbox_sent += 1
-                                logger.debug("Sent private reply for comment %s", comment.id)
-                            except Exception as e:
-                                logger.exception("Failed to send private reply for comment %s: %s", comment.id, e)
+                                metrics.monitor_cycle_inbox_sent.labels(user_id=uid, page_id=page_id_label).inc()
+                            except Exception:
+                                pass
+                            logger.debug("Sent private reply for comment %s", comment.id)
+                        except Exception as e:
+                            logger.exception("Failed to send private reply for comment %s: %s", comment.id, e)
 
-                    except Exception as e:
-                        logger.exception("Failed to reply to comment %s: %s", comment.id, e)
+                except Exception as e:
+                    logger.exception("Failed to reply to comment %s: %s", comment.id, e)
 
+        duration = time() - start_ts
         logger.info(
-            "Monitoring cycle complete: reels=%s comments=%s replies=%s inbox=%s rules=%s enabled_rules=%s",
+            "Monitoring cycle complete: fetched_reels=%s processed_reels=%s comments=%s replies=%s inbox=%s rules=%s enabled_rules=%s duration=%s",
             len(reels),
+            reels_processed,
             total_comments,
             replies_sent,
             inbox_sent,
             len(rules),
             len(enabled_rules),
+            duration,
         )
+
+        # record duration histogram and api_calls metric
+        try:
+            metrics.monitor_cycle_duration_seconds.labels(user_id=uid, page_id=page_id_label).observe(duration)
+        except Exception:
+            pass
+
+        try:
+            metrics.monitor_cycle_api_calls.labels(user_id=uid, page_id=page_id_label).inc(api_calls)
+        except Exception:
+            pass
+
+        # Record processed reels (only those with enabled rules) to Prometheus and return as 'reels'
+        try:
+            metrics.monitor_cycle_reels.labels(user_id=uid, page_id=page_id_label).inc(reels_processed)
+        except Exception:
+            pass
+
+        return {
+            'reels': reels_processed,
+            'comments': total_comments,
+            'replies': replies_sent,
+            'inbox': inbox_sent,
+            'duration_seconds': duration,
+            'api_calls': api_calls,
+        }

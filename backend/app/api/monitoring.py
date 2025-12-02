@@ -3,10 +3,12 @@ import logging
 from app.services.monitor_service import MonitorService
 from app.services.facebook_service import FacebookService
 from app.services.config_service import ConfigService
+from app.core.database import SessionLocal
+from app.models.models import MonitoringMetric
+from datetime import datetime
 from typing import List, Dict, Any
 from app.models.models import Reel, Comment
 from sqlalchemy.orm import Session
-from app.core.database import SessionLocal
 from app.api.auth import get_current_user
 
 router = APIRouter()
@@ -69,7 +71,61 @@ async def trigger_monitoring(
         "Received /trigger-monitoring; queuing background task with %s rules",
         len(rules),
     )
-    background_tasks.add_task(monitor_service.perform_monitoring_cycle, rules)
+    # Background helper that runs the cycle and persists metrics similar to scheduler
+    def _run_and_persist(rules_map, user_id, page_id, monitor_svc: MonitorService):
+        try:
+            result = monitor_svc.perform_monitoring_cycle(rules_map, user_id=user_id)
+            # persist to DB
+            db = SessionLocal()
+            try:
+                mm = MonitoringMetric(
+                    user_id=user_id,
+                    page_id=page_id,
+                    start_time=datetime.utcnow().isoformat(),
+                    duration_seconds=str(result.get('duration_seconds', 0)),
+                    reels_scanned=int(result.get('reels', 0)),
+                    reels_active=int(result.get('reels', 0)),
+                    comments_scanned=int(result.get('comments', 0)),
+                    replies_sent=int(result.get('replies', 0)),
+                    inbox_sent=int(result.get('inbox', 0)),
+                    api_calls=int(result.get('api_calls', 0)),
+                )
+                # Dedupe check: avoid double-persisting if a recent metric exists for this user/page
+                try:
+                    latest = db.query(MonitoringMetric).filter(MonitoringMetric.user_id == user_id, MonitoringMetric.page_id == page_id).order_by(MonitoringMetric.id.desc()).first()
+                    duplicate = False
+                    if latest is not None and latest.start_time:
+                        try:
+                            latest_ts = datetime.fromisoformat(latest.start_time)
+                            new_ts = datetime.fromisoformat(mm.start_time)
+                            delta = abs((new_ts - latest_ts).total_seconds())
+                            if delta < 60:
+                                duplicate = True
+                        except Exception:
+                            duplicate = False
+                    if duplicate:
+                        logger.info('Skipping persist for manual trigger: recent MonitoringMetric exists for user=%s page=%s (within 60s)', user_id, page_id)
+                    else:
+                        db.add(mm)
+                        db.commit()
+                except Exception:
+                    db.rollback()
+                    raise
+            except Exception:
+                db.rollback()
+            finally:
+                db.close()
+        except Exception:
+            logger.exception('Background monitoring run failed for user %s page %s', user_id, page_id)
+
+    # Queue the background task that will also persist metrics
+    background_tasks.add_task(
+        _run_and_persist,
+        rules,
+        getattr(_current_user, 'id', None),
+        config_service.page_id,
+        monitor_service,
+    )
     logger.info("/trigger-monitoring background task queued")
     return {"message": "Monitoring cycle triggered in the background."}
 

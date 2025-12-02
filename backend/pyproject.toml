@@ -1,0 +1,16 @@
+[tool.ruff]
+# Ruff configuration for the backend FastAPI project.
+line-length = 88
+select = ["E", "F", "W", "C90", "B", "S"]
+# W503 was historically used by flake8/pycodestyle but is not a ruff "rule selector" in
+# newer versions; prefer using the equivalent ruff code (for example: "W503" is covered
+# by whitespace rules in other selectors) or simply ignore specific codes that ruff
+# recognizes. Keep only codes that ruff understands. Remove W503 from extend-ignore.
+extend-ignore = ["E203"]
+
+[tool.ruff.per-file-ignores]
+"**/__pycache__/**" = ["ALL"]
+
+# Note: flake8-specific tables are not supported by ruff's TOML schema. The
+# maximum line length is configured above with `line-length = 88`.
+
