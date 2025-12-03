@@ -1,7 +1,7 @@
 """Safely drop a table from the backend SQLite database.
 
 Usage:
-  python .\backend\scripts\drop_table.py --table monitoring_metrics
+    python ./backend/scripts/drop_table.py --table monitoring_metrics
 
 Options:
   --table <name>    Table name to drop (required)

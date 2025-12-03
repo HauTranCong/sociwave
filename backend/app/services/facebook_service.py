@@ -148,7 +148,31 @@ class FacebookService:
             response = requests.get(url, params=params)
             response.raise_for_status()
             data = response.json()
-            return [Comment.parse_obj(item) for item in data.get("data", [])]
+            comments: List[Comment] = []
+            for item in data.get("data", []):
+                replies_edge = item.get("comments")
+                replies: List[Dict[str, Any]] = []
+                if isinstance(replies_edge, dict):
+                    replies = replies_edge.get("data", []) or []
+                    item["replies"] = replies
+
+                    summary = replies_edge.get("summary") or {}
+                    reply_count = summary.get("total_count")
+                    if reply_count is not None:
+                        item["reply_count"] = reply_count
+
+                    if replies and any(
+                        (reply.get("from") or {}).get("id") == self.page_id
+                        for reply in replies
+                    ):
+                        item["has_replied"] = True
+
+                    # Drop original Graph edge to avoid confusion during parsing
+                    item.pop("comments", None)
+
+                comments.append(Comment.parse_obj(item))
+
+            return comments
         except requests.HTTPError as e:
             self._raise_http_error(e, "Failed to fetch comments from Facebook")
         except Exception as e:
@@ -181,7 +205,7 @@ class FacebookService:
                 if from_data.get("id") == self.page_id:
                     return True
             return False
-        except requests.HTTPError as e:
+        except requests.HTTPError:
             # On error, assume not replied and allow caller to continue
             return False
         except Exception:

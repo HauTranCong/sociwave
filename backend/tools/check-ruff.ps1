@@ -15,7 +15,8 @@ if (Test-Path $venvRuff) {
 
 if ($Fix) {
     Write-Host "-- Fix mode enabled: ruff will try to fix issues"
-    & $ruffCmd --fix $Path
+    # Use the `check` subcommand with --fix so arguments are accepted by newer ruff versions
+    & $ruffCmd check --fix $Path
 } else {
     & $ruffCmd check $Path
 }

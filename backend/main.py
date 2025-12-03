@@ -4,7 +4,7 @@ import logging
 import os
 from app.api import monitoring, rules, config, auth
 from app.api import metrics as metrics_api
-from app.scheduler import MonitoringScheduler, monitoring_scheduler as monitoring_scheduler_singleton
+from app.scheduler import MonitoringScheduler
 from app.core.database import engine
 from app.core.migrations import run_migrations
 from app.models import models

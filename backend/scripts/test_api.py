@@ -98,14 +98,14 @@ def run_stress_test(auth_token, num_workers=10, max_requests=50):
     """Run a stress test with concurrent workers."""
     print("\n--- 7. Starting Stress Test ---")
     print(f"Simulating {max_requests} requests using {num_workers} concurrent workers.\n")
-    
+
     start_time = time.time()
     success_count = 0
     failure_count = 0
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = [executor.submit(stress_test_worker, auth_token, i) for i in range(max_requests)]
-        
+
         for future in concurrent.futures.as_completed(futures):
             if future.result():
                 success_count += 1
@@ -114,7 +114,7 @@ def run_stress_test(auth_token, num_workers=10, max_requests=50):
 
     end_time = time.time()
     duration = end_time - start_time
-    
+
     print("\n--- Stress Test Results ---")
     print(f"Total requests: {max_requests}")
     print(f"Successful requests: {success_count}")

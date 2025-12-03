@@ -1,5 +1,5 @@
-from typing import List, Dict, Set, Optional
-from app.models.models import Reel, Rule, Comment
+from typing import Dict, Set, Optional
+from app.models.models import Rule, Comment
 from app.services.facebook_service import FacebookService
 from app import metrics
 import logging
@@ -13,6 +13,8 @@ class MonitorService:
         self.facebook_service = facebook_service
         # Track comments we've already processed/replied to in this process
         self._replied_comment_ids: Set[str] = set()
+        # Cache expensive per-comment "has page replied" checks
+        self._comment_reply_cache: Dict[str, bool] = {}
 
     def _matches(self, comment_text: str, rule: Rule) -> bool:
         lower_comment = comment_text.lower()
@@ -21,18 +23,18 @@ class MonitorService:
         return any(keyword.lower() in lower_comment for keyword in rule.match_words)
 
     def _has_page_replied(self, comment: Comment, page_id: str) -> bool:
-        # First, check nested replies we already have for this comment
-        if comment.replies:
-            if any(
-                reply.from_user and reply.from_user.id == page_id
-                for reply in comment.replies
-            ):
-                return True
+        cached = self._comment_reply_cache.get(comment.id)
+        if cached is not None:
+            return cached
 
-        # As a more precise per-comment check, query Facebook for replies
+        # As a precise per-comment check, query Facebook for replies
         # to this specific comment ID and see if the page has replied there.
         try:
-            return self.facebook_service.has_replied_to_comment(comment.id)
+            has_replied = self.facebook_service.has_replied_to_comment(comment.id)
+            self._comment_reply_cache[comment.id] = has_replied
+            if has_replied:
+                self._replied_comment_ids.add(comment.id)
+            return has_replied
         except Exception:
             # On failure to check, fall back to "not replied" so monitoring
             # can still proceed (Facebook will reject duplicate replies).
@@ -111,19 +113,33 @@ class MonitorService:
                     logger.debug("Skipping comment %s on reel %s: authored by page", comment.id, reel.id)
                     continue
 
-                # Check nested replies first; only call has_replied_to_comment when necessary
-                has_reply = False
-                if comment.replies:
-                    if any(reply.from_user and reply.from_user.id == page_id for reply in comment.replies):
+                # Check nested replies we already fetched; only fallback when truncated
+                has_reply = comment.has_replied
+                replies = comment.replies or []
+
+                if not has_reply and replies:
+                    if any(reply.from_user and reply.from_user.id == page_id for reply in replies):
                         has_reply = True
 
-                if not has_reply:
-                    # call API to check thread replies
+                if has_reply:
+                    logger.debug("Skipping comment %s on reel %s: page already replied (nested data)", comment.id, reel.id)
+                    self._replied_comment_ids.add(comment.id)
+                    continue
+
+                reply_count = comment.reply_count
+                fallback_needed = False
+                if reply_count is not None:
+                    fallback_needed = reply_count > len(replies)
+
+                if not fallback_needed and not replies and reply_count is None:
+                    # No replies present and no summary information -> assume no replies
+                    fallback_needed = False
+
+                if not has_reply and fallback_needed:
                     try:
                         api_calls += 1
                         if self._has_page_replied(comment, page_id):
-                            logger.debug("Skipping comment %s on reel %s: page already replied in thread", comment.id, reel.id)
-                            self._replied_comment_ids.add(comment.id)
+                            logger.debug("Skipping comment %s on reel %s: page already replied (fallback check)", comment.id, reel.id)
                             continue
                     except Exception:
                         # If check fails, assume not replied and continue

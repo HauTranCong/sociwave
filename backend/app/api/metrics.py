@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.models import MonitoringMetric
 from app.models.models import RuleModel
-from typing import List, Optional
+from typing import Optional
 from sqlalchemy import func
-from fastapi import Depends
 
 router = APIRouter()
 

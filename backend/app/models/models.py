@@ -29,6 +29,7 @@ class Comment(BaseModel):
     created_time: datetime
     updated_time: Optional[datetime] = None
     replies: Optional[List['Comment']] = None
+    reply_count: Optional[int] = Field(None, exclude=True)
     has_replied: bool = Field(False, exclude=True)
 
     class Config:
