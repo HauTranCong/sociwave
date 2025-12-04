@@ -34,6 +34,19 @@ services:
     networks:
       - sociwave-network
 
+  sociwave-webhook:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    command: uvicorn feature.facebook_webhook_server:app --host 0.0.0.0 --port 8001 --reload
+    environment:
+      FB_VERIFY_TOKEN: ${FB_VERIFY_TOKEN:-test_verify_token}
+      FB_APP_SECRET: ${FB_APP_SECRET}
+    volumes:
+      - ../backend:/app
+    networks:
+      - sociwave-network
+
   sociwave-proxy:
     image: caddy:2-alpine
     container_name: sociwave-proxy
