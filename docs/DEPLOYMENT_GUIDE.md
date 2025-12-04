@@ -10,7 +10,7 @@
 
 Your SociWave web app is ready for deployment. The optimized build is in:
 ```
-/home/worker/sociwave/webwebapp/build/web/
+webapp/build/web/
 ```
 
 ---
@@ -39,10 +39,10 @@ Choose one of the following hosting platforms:
 2. **Deploy Site:**
    - Click "Add new site" → "Deploy manually"
    - Drag the `build/web` folder into the upload zone
-   - Wait for deployment (1-2 minutes)
-
-3. **Get Your URL:**
-   - Netlify provides: `https://random-name-12345.netlify.app`
+   Your SociWave web app is ready for deployment. The optimized build is in:
+   ```
+   webapp/build/web/
+   ```
    - You can customize: Site settings → Change site name
 
 4. **Custom Domain (Optional):**
@@ -54,71 +54,44 @@ Choose one of the following hosting platforms:
 
 1. **Push to GitHub:**
    ```bash
-   cd /home/worker/sociwave
+   cd <path-to-repo-root>
    git add .
    git commit -m "Phase 7: Web deployment ready"
    git push origin main
    ```
-
-2. **Connect Netlify:**
-   - Netlify → "Add new site" → "Import an existing project"
-   - Choose GitHub → Select `sociwave` repo
    - Configure:
      - Base directory: `app`
      - Build command: `flutter build web --release --tree-shake-icons`
      - Publish directory: `webapp/build/web`
 
 3. **Deploy:**
-   - Click "Deploy site"
-   - Auto-deploys on every push to main!
+      ```bash
+      cd webapp
+      flutter build web --release --base-href "/sociwave/"
+      ```
 
-**Netlify URL Format:**
-```
-https://sociwave.netlify.app
-(or your custom domain)
-```
+   Netlify will provide a temporary site URL (or your custom domain after configuration).
 
 ---
 
-### Option 2: Vercel (Great Performance) 🚀
+2. **Build with Correct Base Href:**
+   ```bash
+   cd webapp
+   flutter build web --release --base-href "/sociwave/"
+   ```
 
-**Why Vercel:**
-- ✅ Free tier (100GB bandwidth/month)
-- ✅ Excellent performance (CDN)
-- ✅ Easy Git integration
-- ✅ Preview deployments
+3. **Create gh-pages Branch (optional):**
+   ```bash
+   cd <path-to-repo-root>
+   git checkout --orphan gh-pages
+   git rm -rf .
+   cp -r webapp/build/web/* .
+   git add .
+   git commit -m "Deploy to GitHub Pages"
+   git push origin gh-pages
+   ```
 
-#### **Deployment Steps:**
-
-1. **Create Account:**
-   - Visit: https://vercel.com
-   - Sign up with GitHub
-
-2. **Import Project:**
-   - Dashboard → "Add New" → "Project"
-   - Import `sociwave` repository from GitHub
-
-3. **Configure:**
-   - Framework Preset: **Other**
-   - Root Directory: `app`
-   - Build Command: `flutter build web --release --tree-shake-icons`
-   - Output Directory: `webapp/build/web`
-
-4. **Deploy:**
-   - Click "Deploy"
-   - Wait 2-3 minutes
-   - Get URL: `https://sociwave.vercel.app`
-
-5. **Auto-Deploy:**
-   - Every push to main branch auto-deploys
-   - Pull requests get preview URLs
-
-**Vercel URL Format:**
-```
-https://sociwave.vercel.app
-https://sociwave-git-main.vercel.app (main branch)
-https://sociwave-pr-123.vercel.app (PR preview)
-```
+For Vercel, Netlify, and other hosts, set the publish/output directory to `webapp/build/web` and use `flutter build web --release --tree-shake-icons` as the build command.
 
 ---
 
@@ -134,13 +107,13 @@ https://sociwave-pr-123.vercel.app (PR preview)
 
 1. **Build with Correct Base Href:**
    ```bash
-   cd /home/worker/sociwave/webapp
+   cd webapp
    flutter build web --release --base-href "/sociwave/"
    ```
 
 2. **Create gh-pages Branch:**
    ```bash
-   cd /home/worker/sociwave
+   cd <path-to-repo-root>
    git checkout --orphan gh-pages
    git rm -rf .
    ```
@@ -208,7 +181,7 @@ After deploying, verify:
 If you want to update Open Graph URLs in index.html:
 
 ```bash
-cd /home/worker/sociwave/webwebapp/web
+cd webapp/web
 ```
 
 Edit `index.html` and replace:
