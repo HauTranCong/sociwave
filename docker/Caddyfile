@@ -10,7 +10,7 @@
         reverse_proxy sociwave-backend:8000
     }
 
-    handle /webhook {
+    handle /webhook* {
         reverse_proxy sociwave-webhook:8001
     }
 
