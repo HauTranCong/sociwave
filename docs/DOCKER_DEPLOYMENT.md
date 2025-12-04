@@ -16,13 +16,13 @@ The Docker setup includes:
 
 ---
 
-## 🚀 Quick Start
+# Quick Start
 
 ### Option 1: Using Docker Compose (Recommended)
 
 ```bash
 # Navigate to project root
-cd /home/worker/sociwave
+cd <path-to-repo-root>
 
 # Build and run
 docker-compose -f docker/docker-compose.yml up -d
@@ -77,38 +77,38 @@ docker logs -f sociwave-web
 ### Multi-Stage Build
 
 **Stage 1: Flutter Build**
-```dockerfile
-FROM ghcr.io/cirruslabs/flutter:stable AS build
+```bash
+# SSH to your server
+ssh user@your-server.com
+
+# Install Docker and Docker Compose
+curl -fsSL https://get.docker.com -o get-docker.sh
+sh get-docker.sh
+sudo apt-get install docker-compose-plugin
+
+# Clone repository
+git clone https://github.com/HauTranCong/sociwave.git
+cd <path-to-repo-root>
+
+# Run with Docker Compose
+docker-compose -f docker/docker-compose.yml up -d
+
+# Setup Nginx reverse proxy (optional)
+# Edit /etc/nginx/sites-available/sociwave
+server {
+  listen 80;
+  server_name yourdomain.com;
+    
+  location / {
+    proxy_pass http://localhost:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+  }
+}
+
+# Enable SSL with Let's Encrypt
+sudo certbot --nginx -d yourdomain.com
 ```
-- Uses official Flutter Docker image
-- Runs `flutter pub get`
-- Builds optimized web app with `--tree-shake-icons`
-- Build time: ~2-3 minutes
-- Build output: 31MB in `/webapp/build/web`
-
-**Stage 2: Nginx Serve**
-```dockerfile
-FROM nginx:alpine
-```
-- Uses lightweight Alpine Linux (5MB base)
-- Copies built web app to Nginx
-- Adds custom configuration
-- Adds health check endpoint
-- Final image size: ~40MB
-
-### Build Optimization
-
-The build process includes:
-- ✅ Tree-shaking icons (99%+ reduction)
-- ✅ Release mode compilation
-- ✅ Minified JavaScript
-- ✅ Removed source maps
-- ✅ Gzip compression enabled
-- ✅ Static asset caching
-
----
-
-## 📋 Available Commands
 
 ### Docker Compose Commands
 
@@ -601,7 +601,7 @@ docker volume prune
 
 ```bash
 # Pull latest code
-cd /home/worker/sociwave
+cd <path-to-repo-root>
 git pull origin main
 
 # Rebuild and deploy

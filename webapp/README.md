@@ -2,7 +2,7 @@
 
 This is the Flutter application source code for SociWave.
 
-**📚 For complete architecture and design documentation, see: [`../docs/ARCHITECTURE_DESIGN.md`](../docs/ARCHITECTURE_DESIGN.md)**
+**📚 For architecture and design details, see: [`ARCHITECTURE_DESIGN.md`](../docs/ARCHITECTURE_DESIGN.md)**
 
 ## 📁 Directory Structure
 

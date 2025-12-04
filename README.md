@@ -224,7 +224,6 @@ For more detailed instructions, see [DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMEN
 - [**ARCHITECTURE_DESIGN.md**](docs/ARCHITECTURE_DESIGN.md) - System architecture and design
 - [**DEPLOYMENT_GUIDE.md**](docs/DEPLOYMENT_GUIDE.md) - Deploy to Netlify, Vercel, or GitHub Pages
 - [**DOCKER_DEPLOYMENT.md**](docs/DOCKER_DEPLOYMENT.md) - Complete Docker deployment guide
-- [**PROJECT_STATUS.md**](docs/PROJECT_STATUS.md) - Current project status and decisions
 
 ---
 
@@ -314,19 +313,6 @@ flutter analyze
 ```bash
 flutter format lib/
 ```
-
----
-
-## 📈 Project Stats
-
-- **Platform:** Flutter Web (with mobile support)
-- **Code Lines:** 6,500+ lines
-- **Dart Files:** 39 files
-- **Screens:** 6
-- **Widgets:** 8+ custom widgets
-- **Providers:** 6 state providers
-- **Services:** 4 core services
-- **Build Size:** ~31MB (optimized)
 
 ---
 
