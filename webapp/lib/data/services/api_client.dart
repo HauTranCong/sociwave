@@ -21,7 +21,7 @@ class ApiClient {
   ApiClient({String? authToken, String? baseUrlOverride, String? pageId})
     : _dio = Dio(
         BaseOptions(
-          baseUrl: baseUrlOverride ?? _compileTimeBaseUrl,
+          baseUrl: _resolveBaseUrl(baseUrlOverride),
           // Increase timeouts to be more forgiving for slower local/back-end starts
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 15),
@@ -56,6 +56,24 @@ class ApiClient {
         },
       ),
     );
+  }
+
+  /// Choose a safe base URL, avoiding mixed-content (HTTPS page -> HTTP API).
+  static String _resolveBaseUrl(String? override) {
+    // 1) Explicit override wins
+    if (override != null && override.isNotEmpty) return override;
+
+    // 2) Respect compile-time value unless it would cause mixed content
+    final candidate = _compileTimeBaseUrl;
+    final pageScheme = Uri.base.scheme;
+    if (pageScheme == 'https' && candidate.startsWith('http://')) {
+      // Use current origin over HTTPS and let reverse proxy route /api
+      return '${Uri.base.origin}/api';
+    }
+
+    // 3) Fall back to compile-time or a sane local default
+    if (candidate.isNotEmpty) return candidate;
+    return 'http://127.0.0.1:8000/api';
   }
 
   /// Fetch recent monitoring metrics (for dashboard widget)

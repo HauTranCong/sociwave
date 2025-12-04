@@ -1,0 +1,27 @@
+{
+    email {env.ACME_EMAIL}
+}
+
+{$DOMAIN} {
+    encode zstd gzip
+
+    @api path /api/* /metrics* /docs* /openapi.json
+    handle @api {
+        reverse_proxy sociwave-backend:8000
+    }
+
+    handle {
+        reverse_proxy sociwave-frontend:80
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer-when-downgrade"
+    }
+}
+
+www.{$DOMAIN} {
+    redir https://{$DOMAIN}{uri}
+}

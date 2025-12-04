@@ -54,6 +54,22 @@ docker logs -f sociwave-web
 # Open browser: http://localhost:8080
 ```
 
+## 🔒 HTTPS with Free SSL (Caddy + Let's Encrypt)
+
+1. **Point DNS:** Create an A record for your domain (e.g., `sociwave.tech`) to this server's public IP and make sure ports **80** and **443** are open.
+2. **Create env file (`docker/.env`):**
+   ```
+   DOMAIN=sociwave.tech
+   ACME_EMAIL=you@example.com
+   API_BASE_URL=https://sociwave.tech/api
+   FRONTEND_ORIGINS=http://localhost:8080,https://sociwave.tech,https://www.sociwave.tech
+   ```
+3. **Build & start with TLS proxy:**
+   ```bash
+   docker compose -f docker/docker-compose.yml up -d --build sociwave-backend sociwave-frontend sociwave-proxy
+   ```
+4. Caddy will automatically request and renew certificates and terminate HTTPS on ports 80/443 while proxying `/api/*` to the backend and all other traffic to the frontend.
+
 ---
 
 ## 🛠️ Build Process Explained

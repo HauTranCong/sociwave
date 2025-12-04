@@ -21,7 +21,7 @@ services:
       context: ../backend
       dockerfile: Dockerfile
     environment:
-      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:8080}
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:8080,https://sociwave.tech,https://www.sociwave.tech}
     ports:
       - "8000:8000"
     container_name: sociwave-backend
@@ -34,6 +34,30 @@ services:
     networks:
       - sociwave-network
 
+  sociwave-proxy:
+    image: caddy:2-alpine
+    container_name: sociwave-proxy
+    restart: unless-stopped
+    depends_on:
+      - sociwave-frontend
+      - sociwave-backend
+    environment:
+      DOMAIN: ${DOMAIN:-sociwave.tech}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@sociwave.tech}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - sociwave-network
+
 networks:
   sociwave-network:
     driver: bridge
+
+volumes:
+  caddy-data:
+  caddy-config:
