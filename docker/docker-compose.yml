@@ -42,6 +42,8 @@ services:
     environment:
       FB_VERIFY_TOKEN: ${FB_VERIFY_TOKEN:-test_verify_token}
       FB_APP_SECRET: ${FB_APP_SECRET}
+    ports:
+      - "8001:8001"
     volumes:
       - ../backend:/app
     networks:
