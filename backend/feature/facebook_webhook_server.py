@@ -3,7 +3,7 @@ Standalone Facebook webhook test server.
 
 Usage:
   - Set environment variables FB_VERIFY_TOKEN and FB_APP_SECRET (optional for dev)
-  - Run with: python -m uvicorn facebook_webhook_server:app --host 0.0.0.0 --port 80
+  - Run with: python -m uvicorn facebook_webhook_server:app --host 0.0.0.0 --port 8001
 
 This file is intentionally standalone so you can test the webhook on an EC2 Ubuntu
 instance without integrating into the main app.
