@@ -1,11 +1,11 @@
 {
-    "name": "SociWave - Facebook Reel Comment Manager",
+    "name": "SociWave - An Unified Hub",
     "short_name": "SociWave",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
     "theme_color": "#2196F3",
-    "description": "Automated Facebook Reel comment monitoring and reply system with customizable rules",
+    "description": "Unified hub for managing and automating engagement across social media (Facebook, TikTok) and e-commerce platforms (Shopee) — monitor comments, configure rules, and streamline replies",
     "orientation": "any",
     "prefer_related_applications": false,
     "scope": "/",

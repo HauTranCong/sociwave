@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 /// App theme configuration using Material 3
 class AppTheme {
   // Primary color palette
-  static const Color primaryColor = Color(0xFF1877F2); // Facebook blue
-  static const Color secondaryColor = Color(0xFF42B72A); // Success green
+  static const Color primaryColor = Color(0xFF1877F2); 
+  static const Color secondaryColor = Color(0xFF42B72A); 
   static const Color errorColor = Color(0xFFD32F2F);
   static const Color warningColor = Color(0xFFFFA726);
 
