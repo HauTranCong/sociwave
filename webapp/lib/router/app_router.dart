@@ -7,6 +7,7 @@ import '../screens/settings_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/rule_editor_screen.dart';
 import '../screens/comments_screen.dart';
+import '../screens/messages_screen.dart';
 import '../widgets/main_layout.dart';
 import '../providers/auth_provider.dart';
 
@@ -16,6 +17,7 @@ class AppRouter {
   static const String login = '/login';
   static const String settings = '/settings';
   static const String dashboard = '/dashboard';
+  static const String messages = '/messages';
   static const String ruleEditor = '/rule-editor';
   static const String comments = '/comments';
 
@@ -69,6 +71,12 @@ class AppRouter {
               name: 'dashboard',
               pageBuilder: (context, state) =>
                   NoTransitionPage(child: const DashboardScreen()),
+            ),
+            GoRoute(
+              path: messages,
+              name: 'messages',
+              pageBuilder: (context, state) =>
+                  NoTransitionPage(child: const MessagesScreen()),
             ),
             GoRoute(
               path: settings,

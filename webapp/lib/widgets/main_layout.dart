@@ -87,6 +87,12 @@ class _MainLayoutState extends State<MainLayout> {
               tooltip: "",
             ),
             NavigationDestination(
+              icon: Icon(Icons.message_outlined),
+              selectedIcon: Icon(Icons.message),
+              label: 'Messages',
+              tooltip: "",
+            ),
+            NavigationDestination(
               icon: Icon(Icons.settings_outlined),
               selectedIcon: Icon(Icons.settings),
               label: 'Settings',
@@ -219,10 +225,18 @@ class _MainLayoutState extends State<MainLayout> {
                 ),
                 _buildDestination(
                   theme: theme,
+                  icon: Icons.message_outlined,
+                  selectedIcon: Icons.message,
+                  label: 'MESSAGES',
+                  selected: selectedIndex == 1,
+                  tooltip: 'Messages',
+                ),
+                _buildDestination(
+                  theme: theme,
                   icon: Icons.settings_outlined,
                   selectedIcon: Icons.settings,
                   label: 'SETTINGS',
-                  selected: selectedIndex == 1,
+                  selected: selectedIndex == 2,
                   tooltip: 'Settings',
                 ),
               ],
@@ -241,7 +255,8 @@ class _MainLayoutState extends State<MainLayout> {
 
   int _getSelectedIndex(String location) {
     if (location.contains('/dashboard')) return 0;
-    if (location.contains('/settings')) return 1;
+    if (location.contains('/messages')) return 1;
+    if (location.contains('/settings')) return 2;
     return 0;
   }
 
@@ -251,6 +266,9 @@ class _MainLayoutState extends State<MainLayout> {
         context.go('/dashboard');
         break;
       case 1:
+        context.go('/messages');
+        break;
+      case 2:
         context.go('/settings');
         break;
     }
